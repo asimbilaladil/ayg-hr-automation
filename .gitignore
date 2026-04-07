@@ -1,0 +1,56 @@
+# ----------------------
+# ENV FILES
+# ----------------------
+.env
+.env.local
+.env.*.local
+
+# ----------------------
+# NODE MODULES
+# ----------------------
+node_modules/
+frontend/node_modules/
+backend/node_modules/
+
+# ----------------------
+# BUILD FILES
+# ----------------------
+dist/
+build/
+.next/
+frontend/.next/
+backend/dist/
+
+# ----------------------
+# LOG FILES
+# ----------------------
+logs/
+*.log
+backend/logs/
+
+# ----------------------
+# SYSTEM FILES
+# ----------------------
+.DS_Store
+Thumbs.db
+
+# ----------------------
+# PACKAGE LOCK (optional)
+# ----------------------
+package-lock.json
+
+# ----------------------
+# TYPESCRIPT CACHE
+# ----------------------
+*.tsbuildinfo
+
+# ----------------------
+# NEXT AUTH / TEMP FILES
+# ----------------------
+.next/cache
+
+# ----------------------
+# IDE FILES
+# ----------------------
+.vscode/
+.idea/

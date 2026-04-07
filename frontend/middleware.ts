@@ -1,4 +1,4 @@
-import { auth } from './app/api/auth/[...nextauth]/route'
+import { auth } from '@/auth'
 import { NextResponse } from 'next/server'
 
 export default auth((req) => {
@@ -9,16 +9,12 @@ export default auth((req) => {
   const isApiAuth     = pathname.startsWith('/api/auth')
   const isPublicAsset = pathname.startsWith('/_next') || pathname === '/favicon.ico'
 
-  // Always allow Next.js internals and NextAuth API routes
   if (isPublicAsset || isApiAuth) return NextResponse.next()
 
-  // Unauthenticated → redirect to login
   if (!isLoggedIn && !isLoginPage) {
-    const loginUrl = new URL('/login', req.url)
-    return NextResponse.redirect(loginUrl)
+    return NextResponse.redirect(new URL('/login', req.url))
   }
 
-  // Already authenticated → skip login page
   if (isLoggedIn && isLoginPage) {
     return NextResponse.redirect(new URL('/dashboard', req.url))
   }
