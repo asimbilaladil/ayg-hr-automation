@@ -1,0 +1,94 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  HR
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  role      Role     @default(HR)
+  azureId   String?  @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Candidate {
+  id                String    @id @default(cuid())
+  postingName       String
+  location          String
+  candidateName     String
+  phone             String?
+  dateApplied       String?
+  hiringManager     String?
+  recruiter         String?
+  status            String    @default("pending")
+  receivedAt        DateTime?
+  emailId           String    @unique
+  aiScore           Float?
+  aiRecommendation  String?
+  aiCriteriaMet     String?
+  aiCriteriaMissing String?
+  aiSummary         String?
+  reviewedAt        DateTime?
+  called            String?
+  transcript        String?   @db.Text
+  deletedAt         DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([status])
+  @@index([location])
+  @@index([postingName])
+  @@index([emailId])
+  @@index([deletedAt])
+}
+
+model ManagerAvailability {
+  id           String   @id @default(cuid())
+  location     String
+  managerName  String
+  managerEmail String
+  dayOfWeek    String
+  startTime    String
+  endTime      String
+  slotDuration String   @default("20 Min")
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([location])
+  @@index([dayOfWeek])
+}
+
+model Appointment {
+  id            String   @id @default(cuid())
+  location      String
+  managerName   String?
+  managerEmail  String?
+  candidateName String
+  jobRole       String?
+  interviewDate DateTime
+  day           String?
+  startTime     String
+  endTime       String
+  slotDuration  String   @default("20 min")
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([interviewDate])
+  @@index([location])
+  @@index([managerEmail])
+}
