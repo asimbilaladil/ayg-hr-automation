@@ -2,9 +2,8 @@ import { z } from 'zod';
 
 const envSchema = z.object({
   DATABASE_URL: z.string().url(),
-  AZURE_TENANT_ID: z.string().min(1),
-  AZURE_CLIENT_ID: z.string().min(1),
-  AZURE_JWKS_URI: z.string().url(),
+  JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
+  ORG_EMAIL_DOMAIN: z.string().min(1, 'ORG_EMAIL_DOMAIN is required (e.g. aygfoods.com)'),
   N8N_API_KEY: z.string().min(16),
   PORT: z.coerce.number().default(3001),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),

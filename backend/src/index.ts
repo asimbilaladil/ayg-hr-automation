@@ -8,6 +8,7 @@ import { env } from './config/env';
 import { errorHandler } from './middleware/errorHandler';
 import { setupSwagger } from './swagger/setup';
 
+import authRoutes from './routes/auth';
 import candidateRoutes from './routes/candidates';
 import appointmentRoutes from './routes/appointments';
 import availabilityRoutes from './routes/availability';
@@ -34,6 +35,7 @@ app.get('/health', (_req, res) => res.json({ status: 'ok', ts: new Date().toISOS
 setupSwagger(app);
 
 // ── Routes ───────────────────────────────────────────────────────────────────
+app.use('/api/auth', authRoutes);
 app.use('/api/candidates', candidateRoutes);
 app.use('/api/appointments', appointmentRoutes);
 app.use('/api/availability', availabilityRoutes);

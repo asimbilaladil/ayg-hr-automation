@@ -4,7 +4,7 @@ type Role = 'ADMIN' | 'MANAGER' | 'HR'
 
 declare module 'next-auth' {
   interface Session extends DefaultSession {
-    /** Azure AD access token — forwarded to the Express backend as Bearer */
+    /** Backend-issued JWT — forwarded to the Express backend as Bearer */
     accessToken: string
     user: {
       id: string

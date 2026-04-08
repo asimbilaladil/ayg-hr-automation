@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { createRemoteJWKSet, jwtVerify } from 'jose';
+import { jwtVerify } from 'jose';
 import { env } from '../config/env';
 
 export interface AuthUser {
@@ -18,15 +18,8 @@ declare global {
   }
 }
 
-const jwksCache = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
-
-function getJWKS() {
-  const uri = env.AZURE_JWKS_URI;
-  if (!jwksCache.has(uri)) {
-    jwksCache.set(uri, createRemoteJWKSet(new URL(uri)));
-  }
-  return jwksCache.get(uri)!;
-}
+// Pre-encode the secret once at startup
+const JWT_SECRET = new TextEncoder().encode(env.JWT_SECRET);
 
 export async function auth(req: Request, res: Response, next: NextFunction) {
   // 1. Check n8n API key
@@ -48,31 +41,18 @@ export async function auth(req: Request, res: Response, next: NextFunction) {
   const token = authHeader.slice(7);
 
   try {
-    const JWKS = getJWKS();
-    const { payload } = await jwtVerify(token, JWKS, {
-      issuer: `https://login.microsoftonline.com/${env.AZURE_TENANT_ID}/v2.0`,
-      audience: env.AZURE_CLIENT_ID,
+    const { payload } = await jwtVerify(token, JWT_SECRET, {
+      algorithms: ['HS256'],
     });
 
-    // Import prisma lazily to avoid circular deps
     const { prisma } = await import('../lib/prisma');
-    const azureId = payload.oid as string;
-    const email = (payload.preferred_username || payload.email || payload.upn) as string;
 
-    let user = await prisma.user.findFirst({
-      where: { OR: [{ azureId }, { email }] },
+    const user = await prisma.user.findUnique({
+      where: { id: payload.sub as string },
     });
 
     if (!user) {
-      // Auto-provision user on first login
-      user = await prisma.user.create({
-        data: {
-          email,
-          name: (payload.name as string) || email,
-          azureId,
-          role: 'HR',
-        },
-      });
+      return res.status(401).json({ error: 'User not found' });
     }
 
     if (!user.isActive) {
@@ -87,7 +67,7 @@ export async function auth(req: Request, res: Response, next: NextFunction) {
     };
 
     next();
-  } catch (err) {
+  } catch {
     return res.status(401).json({ error: 'Invalid or expired token' });
   }
 }
