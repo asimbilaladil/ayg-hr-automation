@@ -4,7 +4,7 @@ module.exports = {
       name: 'hr-backend',
       script: 'dist/index.js',
       cwd: '/root/ayg-hr-automation/backend',
-      node_args: '--env-file=.env',
+      node_args: '--env-file=/root/ayg-hr-automation/backend/.env',
       instances: 1,
       autorestart: true,
       watch: false,
