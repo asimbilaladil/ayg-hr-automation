@@ -3,11 +3,6 @@
 import { signIn } from 'next-auth/react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useState, Suspense } from 'react'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Loader2, AlertCircle } from 'lucide-react'
 
 function LoginContent() {
@@ -20,8 +15,8 @@ function LoginContent() {
   const [loading, setLoading] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
 
-  const isAccessDenied = error === 'AccessDenied' || error === 'Signin'
   const orgDomain = process.env.NEXT_PUBLIC_ORG_DOMAIN ?? 'company.com'
+  const isAccessDenied = error === 'AccessDenied' || error === 'Signin'
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -36,22 +31,16 @@ function LoginContent() {
 
     if (result?.ok) {
       router.push('/dashboard')
-      // keep loading=true while redirecting
       return
     }
 
     setLoading(false)
-
-    if (result?.error === 'AccessDenied') {
-      setFormError(`Access restricted to @${orgDomain} email addresses.`)
-    } else {
-      setFormError('Invalid email or password. Please try again.')
-    }
+    setFormError('Invalid email or password. Please try again.')
   }
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-900 dark:to-slate-800 p-4">
-      {/* Subtle dot-grid background */}
+      {/* Dot-grid background */}
       <div
         className="absolute inset-0 opacity-30"
         style={{
@@ -62,109 +51,104 @@ function LoginContent() {
       />
 
       <div className="relative w-full max-w-sm">
-        <Card className="shadow-xl border-0 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm">
-          <CardHeader className="space-y-4 pb-4 text-center">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-900 dark:bg-white shadow-md">
+        <div className="rounded-2xl shadow-xl border border-slate-200 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm p-8 space-y-6">
+
+          {/* Logo */}
+          <div className="flex flex-col items-center space-y-3">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-900 dark:bg-white shadow-md">
               <span className="text-2xl font-bold text-white dark:text-slate-900">HR</span>
             </div>
-            <div>
-              <CardTitle className="text-xl font-semibold text-slate-900 dark:text-white">
+            <div className="text-center">
+              <h1 className="text-xl font-semibold text-slate-900 dark:text-white">
                 HR Recruitment Platform
-              </CardTitle>
-              <CardDescription className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              </h1>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                 Sign in with your organisation account
-              </CardDescription>
+              </p>
             </div>
-          </CardHeader>
+          </div>
 
-          <CardContent className="space-y-4">
-            {/* URL-level error (e.g. redirect back from NextAuth) */}
-            {isAccessDenied && !formError && (
-              <Alert variant="destructive" className="bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-900">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription className="text-sm">
-                  <strong>Access Denied</strong> — Only{' '}
-                  <span className="font-mono font-semibold">@{orgDomain}</span>{' '}
-                  email addresses are permitted.
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {/* Form-level error */}
-            {formError && (
-              <Alert variant="destructive" className="bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-900">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription className="text-sm">{formError}</AlertDescription>
-              </Alert>
-            )}
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="email" className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                  Email
-                </Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder={`you@${orgDomain}`}
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  disabled={loading}
-                  className="h-10"
-                  autoComplete="email"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="password" className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                  Password
-                </Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  disabled={loading}
-                  className="h-10"
-                  autoComplete="current-password"
-                />
-              </div>
-
-              <Button
-                type="submit"
-                disabled={loading}
-                className="w-full h-11 font-medium text-sm"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Signing in…
-                  </>
-                ) : (
-                  'Sign in'
-                )}
-              </Button>
-            </form>
-
-            <p className="text-center text-xs text-slate-400 dark:text-slate-500">
-              Access is restricted to authorised personnel only.
-              <br />
-              Contact your administrator if you need access.
-            </p>
-          </CardContent>
-
-          <CardFooter className="pt-0 justify-center">
-            <p className="text-xs text-slate-400 dark:text-slate-500">
-              Powered by{' '}
-              <span className="font-medium text-slate-600 dark:text-slate-300">
-                {process.env.NEXT_PUBLIC_COMPANY_NAME ?? 'AYG Foods'}
+          {/* Access denied banner */}
+          {(isAccessDenied || formError) && (
+            <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/30 dark:border-red-900 px-4 py-3 text-sm text-red-700 dark:text-red-400">
+              <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+              <span>
+                {formError ?? `Access restricted to @${orgDomain} email addresses.`}
               </span>
-            </p>
-          </CardFooter>
-        </Card>
+            </div>
+          )}
+
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-1.5">
+              <label
+                htmlFor="email"
+                className="block text-sm font-medium text-slate-700 dark:text-slate-300"
+              >
+                Email
+              </label>
+              <input
+                id="email"
+                type="email"
+                placeholder={`you@${orgDomain}`}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                disabled={loading}
+                autoComplete="email"
+                className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-400 disabled:opacity-50"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-slate-700 dark:text-slate-300"
+              >
+                Password
+              </label>
+              <input
+                id="password"
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                disabled={loading}
+                autoComplete="current-password"
+                className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-400 disabled:opacity-50"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full flex items-center justify-center gap-2 rounded-md bg-slate-900 dark:bg-white px-4 py-2.5 text-sm font-medium text-white dark:text-slate-900 hover:bg-slate-700 dark:hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Signing in…
+                </>
+              ) : (
+                'Sign in'
+              )}
+            </button>
+          </form>
+
+          <p className="text-center text-xs text-slate-400 dark:text-slate-500">
+            Access restricted to authorised personnel only.
+            <br />
+            Contact your administrator if you need access.
+          </p>
+
+          <p className="text-center text-xs text-slate-400 dark:text-slate-500">
+            Powered by{' '}
+            <span className="font-medium text-slate-600 dark:text-slate-300">
+              {process.env.NEXT_PUBLIC_COMPANY_NAME ?? 'AYG Foods'}
+            </span>
+          </p>
+        </div>
       </div>
     </main>
   )
