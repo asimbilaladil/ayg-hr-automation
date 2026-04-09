@@ -11,6 +11,7 @@ router.post('/', apiKeyAuth, ctrl.create);
 router.patch('/:emailId/ai-review', apiKeyAuth, ctrl.updateAIReview);
 router.patch('/:emailId/call-result', apiKeyAuth, ctrl.updateCallResult);
 router.post('/reset-problematic', apiKeyAuth, ctrl.resetProblematic);
+router.patch('/:emailId/status', authenticateApiKey, updateCandidateStatus);
 
 // Frontend endpoints (JWT)
 router.get('/', auth, rbac('HR'), ctrl.list);
