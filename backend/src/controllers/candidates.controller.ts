@@ -75,3 +75,38 @@ export async function resetProblematic(req: Request, res: Response, next: NextFu
     res.json(result);
   } catch (err) { next(err); }
 }
+
+export const updateCandidateStatus = async (req, res) => {
+  try {
+    const { emailId } = req.params;
+    const { status, resumeUrl } = req.body;
+
+    if (!status) {
+      return res.status(400).json({
+        success: false,
+        message: "Status is required"
+      });
+    }
+
+    const candidate = await prisma.candidate.update({
+      where: { emailId },
+      data: {
+        status,
+        ...(resumeUrl && { resumeUrl })
+      }
+    });
+
+    return res.json({
+      success: true,
+      data: candidate
+    });
+
+  } catch (error) {
+    console.error("Status update error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update status"
+    });
+  }
+};
