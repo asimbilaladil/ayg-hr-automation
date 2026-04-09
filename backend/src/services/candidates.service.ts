@@ -111,3 +111,21 @@ export async function resetProblematicCandidates() {
 
   return { reset: result.count };
 }
+
+export async function updateCandidateStatus(emailId: string, data: { status: string; resumeUrl?: string }) {
+  const cleanEmailId = emailId.trim();
+
+  const candidate = await prisma.candidate.findUnique({
+    where: { emailId: cleanEmailId },
+  });
+
+  if (!candidate) throw new Error('NOT_FOUND');
+
+  return prisma.candidate.update({
+    where: { emailId: cleanEmailId },
+    data: {
+      status: data.status,
+      ...(data.resumeUrl && { resumeUrl: data.resumeUrl }),
+    },
+  });
+}
