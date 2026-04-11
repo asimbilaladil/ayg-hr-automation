@@ -15,7 +15,7 @@ export const CreateCandidateSchema = z.object({
 
 export const UpdateAIReviewSchema = z.object({
   aiScore: z.number().min(0).max(100).optional(),
-  aiRecommendation: z.enum(['ACCEPT', 'MAYBE', 'REJECT']).optional(),
+  aiRecommendation: z.enum(['HIRE', 'MAYBE', 'REJECT']).optional(),
   aiCriteriaMet: z.string().optional(),
   aiCriteriaMissing: z.string().optional(),
   aiSummary: z.string().optional(),
@@ -46,7 +46,7 @@ export const CandidateQuerySchema = z.object({
   status: z.string().optional(),
   location: z.string().optional(),
   postingName: z.string().optional(),
-  aiRecommendation: z.enum(['ACCEPT', 'MAYBE', 'REJECT']).optional(),
+  aiRecommendation: z.enum(['HIRE', 'MAYBE', 'REJECT']).optional(),
   search: z.string().optional(),
   page: z.coerce.number().min(1).default(1),
   limit: z.coerce.number().min(1).max(9999).default(20),

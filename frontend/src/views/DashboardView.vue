@@ -152,8 +152,8 @@ const upcomingAppointments = computed(() =>
 
 const aiBreakdown = computed(() => [
   {
-    label: 'Accept',
-    value: candidates.value.filter(c => c.aiRecommendation === 'ACCEPT').length,
+    label: 'Hire',
+    value: candidates.value.filter(c => c.aiRecommendation === 'HIRE').length,
     color: 'text-green-600',
     barColor: 'bg-green-500'
   },

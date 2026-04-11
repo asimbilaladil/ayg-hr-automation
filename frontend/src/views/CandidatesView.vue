@@ -28,7 +28,7 @@
         <div>
           <select v-model="filters.aiRecommendation" class="input" @change="fetchData">
             <option value="">All AI recs</option>
-            <option value="ACCEPT">Accept</option>
+            <option value="HIRE">Hire</option>
             <option value="MAYBE">Maybe</option>
             <option value="REJECT">Reject</option>
           </select>
@@ -189,7 +189,7 @@ const total = ref(0)
 const page = ref(1)
 const limit = 20
 
-const STATUSES = ['pending', 'reviewing', 'reviewed', 'called', 'scheduled', 'rejected', 'accepted']
+const STATUSES = ['pending', 'reviewing', 'reviewed', 'called', 'scheduled', 'rejected', 'hired']
 
 const filters = reactive({
   search: '',

@@ -236,7 +236,7 @@ const tabs = [
   { id: 'transcript', label: 'Transcript' },
 ]
 
-const STATUSES = ['pending', 'reviewing', 'reviewed', 'called', 'scheduled', 'rejected', 'accepted']
+const STATUSES = ['pending', 'reviewing', 'reviewed', 'called', 'scheduled', 'rejected', 'hired']
 
 const editForm = reactive({
   candidateName: '',
