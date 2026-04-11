@@ -7,6 +7,8 @@ const router = Router();
 
 // n8n / Vapi slot lookup
 router.get('/slots', apiKeyAuth, ctrl.getSlots);
+router.get('/suggestions',apiKeyAuth, ctrl.getSuggestions);
+router.get('/validate',apiKeyAuth, ctrl.validateSlot);
 
 // Frontend endpoints
 router.get('/', auth, rbac('HR'), ctrl.list);
@@ -14,5 +16,6 @@ router.get('/:id', auth, rbac('MANAGER'), ctrl.getById);
 router.post('/', auth, rbac('MANAGER'), ctrl.create);
 router.patch('/:id', auth, rbac('MANAGER'), ctrl.update);
 router.delete('/:id', auth, rbac('MANAGER'), ctrl.remove);
+
 
 export default router;
