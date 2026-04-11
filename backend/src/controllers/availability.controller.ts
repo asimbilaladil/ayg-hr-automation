@@ -17,9 +17,14 @@ export async function list(req: Request, res: Response, next: NextFunction) {
 
 export async function getSlots(req: Request, res: Response, next: NextFunction) {
   try {
-    const query = SlotsQuerySchema.parse(req.query);
-    const result = await service.getAvailabilitySlots(query);
-    res.json(result);
+  const query = SlotsQuerySchema.parse(req.query);
+  const limit = req.query.limit ? Number(req.query.limit) : undefined;
+  const result = await service.getAvailabilitySlots({
+    ...query,
+    limit,
+  });
+  
+  res.json(result);
   } catch (err) { next(err); }
 }
 
