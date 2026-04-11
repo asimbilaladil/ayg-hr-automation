@@ -100,7 +100,7 @@ export async function getAvailabilitySlots(query: SlotsQuery) {
       }
     }
   }
-  return { slots };
+  slots: slots.slice(0, 5)
 }
 
 export async function getAvailabilityById(id: string) {
