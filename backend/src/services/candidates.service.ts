@@ -103,7 +103,7 @@ export async function resetProblematicCandidates() {
   const result = await prisma.candidate.updateMany({
     where: {
       deletedAt: null,
-      status: { in: ['reviewed'] },
+      status: { in: ['not_found'] },
       updatedAt: { lt: cutoff },
     },
     data: { status: 'pending' },
