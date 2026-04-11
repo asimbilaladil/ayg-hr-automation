@@ -124,3 +124,74 @@ export async function deleteAvailability(id: string) {
 
   return prisma.managerAvailability.delete({ where: { id } });
 }
+
+export async function getSuggestedSlots(location: string) {
+  const results: any[] = [];
+
+  const today = new Date();
+  const daysToCheck = 10; // current + next week fallback
+
+  for (let i = 0; i < daysToCheck; i++) {
+    const dateObj = new Date();
+    dateObj.setDate(today.getDate() + i);
+
+    const date = dateObj.toISOString().slice(0, 10);
+    const dayOfWeek = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
+
+    const { slots } = await getAvailabilitySlots({
+      location,
+      dayOfWeek,
+      date,
+    });
+
+    if (slots.length > 0) {
+      results.push({
+        date,
+        day: dayOfWeek,
+        slot: slots[0], // ✅ ONLY ONE SLOT PER DAY
+      });
+    }
+
+    if (results.length === 3) break; // ✅ ONLY 2–3 DAYS
+  }
+
+  return { suggestions: results };
+}
+
+export async function validateSlot(input: {
+  location: string;
+  date: string;
+  time: string;
+}) {
+  const { location, date, time } = input;
+
+  const dayOfWeek = new Date(date).toLocaleDateString('en-US', {
+    weekday: 'long',
+  });
+
+  const { slots } = await getAvailabilitySlots({
+    location,
+    dayOfWeek,
+    date,
+  });
+
+  // check exact match
+  const match = slots.find((s) => s.startTime === time);
+
+  if (match) {
+    return {
+      available: true,
+      message: 'Slot is available',
+      slot: match,
+    };
+  }
+
+  // fallback alternatives (3 closest)
+  const alternatives = slots.slice(0, 3).map((s) => s.startTime);
+
+  return {
+    available: false,
+    message: 'Slot not available',
+    alternatives,
+  };
+}
