@@ -52,3 +52,40 @@ export async function remove(req: Request, res: Response, next: NextFunction) {
     res.status(204).send();
   } catch (err) { next(err); }
 }
+
+export async function getSuggestions(req: Request, res: Response, next: NextFunction) {
+  try {
+    const location = String(req.query.location || '');
+
+    if (!location) {
+      return res.status(400).json({ error: 'location is required' });
+    }
+
+    const result = await service.getSuggestedSlots(location);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function validateSlot(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { location, date, time } = req.query;
+
+    if (!location || !date || !time) {
+      return res.status(400).json({
+        error: 'location, date and time are required',
+      });
+    }
+
+    const result = await service.validateSlot({
+      location: String(location),
+      date: String(date),
+      time: String(time),
+    });
+
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
