@@ -6,7 +6,6 @@ import {
   AvailabilityQuery,
 } from '../schemas/availability.schema';
 
-const SLOT_DURATION_MINUTES = 20;
 const TIMEZONE = 'Europe/Berlin';
 
 function timeToMinutes(time: string): number {
@@ -75,25 +74,30 @@ export async function getAvailabilitySlots(query: SlotsQuery) {
     location: string;
   }> = [];
 
-  for (const window of windows) {
-    const startMinutes = timeToMinutes(window.startTime);
-    const endMinutes = timeToMinutes(window.endTime);
-
-    for (let t = startMinutes; t + SLOT_DURATION_MINUTES <= endMinutes; t += SLOT_DURATION_MINUTES) {
-      const slotStart = minutesToTime(t);
-      const slotEnd = minutesToTime(t + SLOT_DURATION_MINUTES);
-      const key = `${window.managerEmail}__${slotStart}`;
-
-      if (!bookedSlots.has(key)) {
-        slots.push({
-          date,
-          day: dayOfWeek,
-          startTime: slotStart,
-          endTime: slotEnd,
-          managerName: window.managerName,
-          managerEmail: window.managerEmail,
-          location: window.location,
-        });
+    for (const window of windows) {
+      const startMinutes = timeToMinutes(window.startTime);
+      const endMinutes = timeToMinutes(window.endTime);
+    
+      // ✅ dynamic duration from DB
+      const duration = parseDuration(window.slotDuration || '15 Min');
+    
+      for (let t = startMinutes; t + duration <= endMinutes; t += duration) {
+        const slotStart = minutesToTime(t);
+        const slotEnd = minutesToTime(t + duration);
+    
+        const key = `${window.managerEmail}__${slotStart}`;
+    
+        if (!bookedSlots.has(key)) {
+          slots.push({
+            date,
+            day: dayOfWeek,
+            startTime: slotStart,
+            endTime: slotEnd,
+            managerName: window.managerName,
+            managerEmail: window.managerEmail,
+            location: window.location,
+          });
+        }
       }
     }
   }
@@ -194,4 +198,9 @@ export async function validateSlot(input: {
     message: 'Slot not available',
     alternatives,
   };
+}
+
+function parseDuration(duration: string): number {
+  const match = duration.match(/(\d+)/);
+  return match ? parseInt(match[1]) : 20; // fallback
 }
