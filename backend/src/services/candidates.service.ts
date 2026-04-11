@@ -97,14 +97,10 @@ export async function deleteCandidate(id: string) {
 }
 
 export async function resetProblematicCandidates() {
-  // Reset candidates stuck in non-terminal states for more than 24h
-  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
-
   const result = await prisma.candidate.updateMany({
     where: {
       deletedAt: null,
-      status: { in: ['not_found'] },
-      updatedAt: { lt: cutoff },
+      status: { in: ['not_found'] }
     },
     data: { status: 'pending' },
   });
