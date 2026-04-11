@@ -136,7 +136,7 @@ export async function getSuggestedSlots(location: string) {
     dateObj.setDate(today.getDate() + i);
 
     const date = dateObj.toISOString().slice(0, 10);
-    const dayOfWeek = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
+    const dayOfWeek = dateObj.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
 
     const { slots } = await getAvailabilitySlots({
       location,
