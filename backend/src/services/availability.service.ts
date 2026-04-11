@@ -74,34 +74,32 @@ export async function getAvailabilitySlots(query: SlotsQuery) {
     location: string;
   }> = [];
 
-    for (const window of windows) {
-      const startMinutes = timeToMinutes(window.startTime);
-      const endMinutes = timeToMinutes(window.endTime);
-    
-      // ✅ dynamic duration from DB
-      const duration = parseDuration(window.slotDuration || '15 Min');
-    
-      for (let t = startMinutes; t + duration <= endMinutes; t += duration) {
-        const slotStart = minutesToTime(t);
-        const slotEnd = minutesToTime(t + duration);
-    
-        const key = `${window.managerEmail}__${slotStart}`;
-    
-        if (!bookedSlots.has(key)) {
-          slots.push({
-            date,
-            day: dayOfWeek,
-            startTime: slotStart,
-            endTime: slotEnd,
-            managerName: window.managerName,
-            managerEmail: window.managerEmail,
-            location: window.location,
-          });
-        }
+  for (const window of windows) {
+    const startMinutes = timeToMinutes(window.startTime);
+    const endMinutes = timeToMinutes(window.endTime);
+  
+    // ✅ dynamic duration from DB
+    const duration = parseDuration(window.slotDuration || '15 Min');
+  
+    for (let t = startMinutes; t + duration <= endMinutes; t += duration) {
+      const slotStart = minutesToTime(t);
+      const slotEnd = minutesToTime(t + duration);
+  
+      const key = `${window.managerEmail}__${slotStart}`;
+  
+      if (!bookedSlots.has(key)) {
+        slots.push({
+          date,
+          day: dayOfWeek,
+          startTime: slotStart,
+          endTime: slotEnd,
+          managerName: window.managerName,
+          managerEmail: window.managerEmail,
+          location: window.location,
+        });
       }
     }
   }
-
   return { slots };
 }
 
@@ -161,6 +159,7 @@ export async function getSuggestedSlots(location: string) {
 
   return { suggestions: results };
 }
+
 
 export async function validateSlot(input: {
   location: string;
