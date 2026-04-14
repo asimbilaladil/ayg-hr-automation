@@ -5,6 +5,30 @@ import {
   AppointmentQuery,
 } from '../schemas/appointment.schema';
 
+// Add this helper function
+function normalize12HourTo24Hour(time: string): string {
+  // If already in 24-hour format (HH:MM), return as is
+  if (!time.includes('AM') && !time.includes('PM')) {
+    return time;
+  }
+  
+  // Parse 12-hour format
+  const match = time.match(/(\d+):(\d+)\s*(AM|PM)/i);
+  if (!match) return time;
+  
+  let [_, hourStr, minute, period] = match;
+  let hour = parseInt(hourStr);
+  
+  if (period.toUpperCase() === 'PM' && hour !== 12) {
+    hour += 12;
+  } else if (period.toUpperCase() === 'AM' && hour === 12) {
+    hour = 0;
+  }
+  
+  return `${String(hour).padStart(2, '0')}:${minute}`;
+}
+
+
 export async function listAppointments(query: AppointmentQuery) {
   const { location, date, managerEmail, page, limit } = query;
   const where: Record<string, unknown> = { active: true };
