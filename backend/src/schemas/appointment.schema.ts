@@ -9,7 +9,7 @@ export const CreateAppointmentSchema = z.object({
   interviewDate: z.string().min(1), // ISO date string or YYYY-MM-DD
   day: z.string().optional(),
   startTime: z.string().min(1),
-  endTime: z.string().min(1),
+  endTime: z.string().optional(),
   slotDuration: z.string().default('20 min'),
 });
 
