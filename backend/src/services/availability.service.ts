@@ -36,6 +36,29 @@ function parseDuration(duration: string): number {
   return match ? parseInt(match[1]) : 15;
 }
 
+// Add this helper function at the top with other helpers
+function normalize12HourTo24Hour(time: string): string {
+  // If already in 24-hour format (HH:MM), return as is
+  if (!time.includes('AM') && !time.includes('PM')) {
+    return time;
+  }
+  
+  // Parse 12-hour format
+  const match = time.match(/(\d+):(\d+)\s*(AM|PM)/i);
+  if (!match) return time;
+  
+  let [_, hourStr, minute, period] = match;
+  let hour = parseInt(hourStr);
+  
+  if (period.toUpperCase() === 'PM' && hour !== 12) {
+    hour += 12;
+  } else if (period.toUpperCase() === 'AM' && hour === 12) {
+    hour = 0;
+  }
+  
+  return `${String(hour).padStart(2, '0')}:${minute}`;
+}
+
 // ---------------- TYPES ----------------
 
 type Slot = {
@@ -67,8 +90,7 @@ export async function listAvailability(query: AvailabilityQuery) {
   return { data, total: data.length };
 }
 
-// ---------------- MAIN SLOT GENERATION ----------------
-
+// Update the getAvailabilitySlots function
 export async function getAvailabilitySlots(
   query: SlotsQuery & { limit?: number }
 ) {
@@ -96,8 +118,22 @@ export async function getAvailabilitySlots(
     },
   });
 
+  console.log('📅 Checking date:', date);
+  console.log('📍 Location:', location);
+  console.log('🔖 Booked appointments:', booked.length);
+
+  // ✅ FIX: Normalize booked times to 24-hour format for comparison
   const bookedSlots = new Set(
-    booked.map((a) => `${a.managerEmail}__${a.startTime}`)
+    booked.map((a) => {
+      const normalizedTime = normalize12HourTo24Hour(a.startTime);
+      console.log(`  → Booked: ${a.startTime} → ${normalizedTime} (${a.managerEmail || 'any manager'})`);
+      
+      // If manager email exists, include it in the key
+      // Otherwise, block the time for ALL managers
+      return a.managerEmail 
+        ? `${a.managerEmail}__${normalizedTime}`
+        : `ANY__${normalizedTime}`;
+    })
   );
 
   const slots: Slot[] = [];
@@ -109,26 +145,32 @@ export async function getAvailabilitySlots(
     const duration = parseDuration(window.slotDuration || '15 Min');
 
     for (let t = startMinutes; t + duration <= endMinutes; t += duration) {
-      const slotStart = minutesToTime(t);
+      const slotStart = minutesToTime(t); // This is in 24-hour format (HH:MM)
       const slotEnd = minutesToTime(t + duration);
 
-      const key = `${window.managerEmail}__${slotStart}`;
+      // Check both manager-specific and ANY bookings
+      const managerKey = `${window.managerEmail}__${slotStart}`;
+      const anyManagerKey = `ANY__${slotStart}`;
 
-      if (!bookedSlots.has(key)) {
+      if (!bookedSlots.has(managerKey) && !bookedSlots.has(anyManagerKey)) {
         slots.push({
           date,
           day: dayOfWeek,
-          startTime: slotStart,
+          startTime: slotStart, // Keep in 24-hour for consistency
           endTime: slotEnd,
-          displayTime: formatTo12Hour(slotStart), // ✅ USA format
+          displayTime: formatTo12Hour(slotStart), // ✅ USA format for display
           managerName: window.managerName,
           managerEmail: window.managerEmail,
           location: window.location,
         });
+      } else {
+        console.log(`  ✖ Slot blocked: ${slotStart} for ${window.managerEmail}`);
       }
     }
   }
 
+  console.log(`✅ Available slots found: ${slots.length}`);
+  
   return {
     slots: limit ? slots.slice(0, limit) : slots,
   };
