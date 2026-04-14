@@ -43,6 +43,9 @@ export async function getAppointmentById(id: string) {
 export async function createAppointment(data: CreateAppointmentInput) {
   const interviewDate = new Date(data.interviewDate);
   
+  // Convert start time to 24-hour format for storage
+  const startTime24h = normalize12HourTo24Hour(data.startTime);
+  
   // Parse the start time and add 15 minutes to create end time
   const startDateTime = new Date(`${data.interviewDate} ${data.startTime}`);
   const endDateTime = new Date(startDateTime);
@@ -59,7 +62,8 @@ export async function createAppointment(data: CreateAppointmentInput) {
     data: {
       ...data,
       interviewDate,
-      endTime
+      startTime: startTime24h, // ✅ Store in 24-hour format
+      endTime,
     },
   });
 }
