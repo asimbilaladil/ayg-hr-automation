@@ -42,11 +42,24 @@ export async function getAppointmentById(id: string) {
 
 export async function createAppointment(data: CreateAppointmentInput) {
   const interviewDate = new Date(data.interviewDate);
+  
+  // Parse the start time and add 15 minutes to create end time
+  const startDateTime = new Date(`${data.interviewDate} ${data.startTime}`);
+  const endDateTime = new Date(startDateTime);
+  endDateTime.setMinutes(endDateTime.getMinutes() + 15);
+  
+  // Format end time back to "h:mm AM/PM"
+  const endTime = endDateTime.toLocaleTimeString('en-US', { 
+    hour: 'numeric', 
+    minute: '2-digit', 
+    hour12: true 
+  });
 
   return prisma.appointment.create({
     data: {
       ...data,
       interviewDate,
+      endTime
     },
   });
 }
