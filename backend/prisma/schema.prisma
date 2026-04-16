@@ -83,7 +83,6 @@ model Candidate {
 
   // Backward compatibility fields (can be removed after full migration)
   postingName   String? // Deprecated - use posting relation
-  location_text String? @map("location") // Deprecated - use location relation
   hiringManager_text String? @map("hiringManager") // Deprecated - use hiringManager relation
 
   @@index([status])
@@ -112,12 +111,6 @@ model ManagerAvailability {
   // Relations
   location Location @relation(fields: [locationId], references: [id])
   manager  User     @relation(fields: [managerId], references: [id])
-
-  // Backward compatibility fields (can be removed after full migration)
-  location_text     String? @map("location") // Deprecated - use location relation
-  managerName_text  String? @map("managerName") // Deprecated - use manager relation
-  managerEmail_text String? @map("managerEmail") // Deprecated - use manager relation
-
   @@index([locationId])
   @@index([managerId])
   @@index([dayOfWeek])
@@ -143,11 +136,6 @@ model Appointment {
   // Relations
   location Location @relation(fields: [locationId], references: [id])
   manager  User?    @relation(fields: [managerId], references: [id])
-
-  // Backward compatibility fields (can be removed after full migration)
-  location_text     String? @map("location") // Deprecated - use location relation
-  managerName_text  String? @map("managerName") // Deprecated - use manager relation
-  managerEmail_text String? @map("managerEmail") // Deprecated - use manager relation
 
   @@index([interviewDate])
   @@index([locationId])
