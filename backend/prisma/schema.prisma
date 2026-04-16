@@ -7,10 +7,20 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum Role {
+  ADMIN
+  HR
+  MANAGER
+}
+
 model User {
-  id    String @id @default(cuid())
-  name  String
-  email String @unique
+  id           String @id @default(cuid())
+  name         String
+  email        String @unique
+  passwordHash String?
+  role         Role   @default(HR)
+  isActive     Boolean @default(true)
+  createdAt    DateTime @default(now())
 
   appointments          Appointment[]         @relation("ManagerAppointments")
   managerAvailabilities ManagerAvailability[] @relation("ManagerAvailabilityRelation")
