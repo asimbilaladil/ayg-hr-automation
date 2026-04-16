@@ -323,40 +323,11 @@ export async function getAllManagers() {
   return managers;
 }
 
-// ✅ NEW: Get locations for a specific manager
-// Returns locations where manager already has availability,
-// falls back to ALL locations if none exist yet
+// ✅ NEW: Get locations assigned to a specific manager
 export async function getManagerLocations(managerId: string) {
-  // First, try to get locations where this manager already has availability
-  const existingLocations = await prisma.managerAvailability.findMany({
+  const locations = await prisma.location.findMany({
     where: {
       managerId,
-    },
-    select: {
-      locationId: true,
-      location_rel: {
-        select: {
-          id: true,
-          name: true,
-        },
-      },
-    },
-    distinct: ['locationId'],
-  });
-
-  // Extract unique locations
-  const uniqueLocations = Array.from(
-    new Map(existingLocations.map(l => [l.locationId, l.location_rel])).values()
-  );
-
-  // If manager has existing availability, return those locations
-  if (uniqueLocations.length > 0) {
-    return uniqueLocations;
-  }
-
-  // Otherwise, return ALL active locations so manager can add availability anywhere
-  const allLocations = await prisma.location.findMany({
-    where: {
       isActive: true,
     },
     select: {
@@ -366,7 +337,7 @@ export async function getManagerLocations(managerId: string) {
     orderBy: { name: 'asc' },
   });
 
-  return allLocations;
+  return locations;
 }
 
 // ✅ NEW: Get all locations

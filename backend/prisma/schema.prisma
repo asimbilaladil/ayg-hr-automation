@@ -25,6 +25,9 @@ model User {
   appointments          Appointment[]         @relation("ManagerAppointments")
   managerAvailabilities ManagerAvailability[] @relation("ManagerAvailabilityRelation")
 
+  // ✅ Locations assigned to this manager
+  locations           Location[]
+
   hiringCandidates    Candidate[] @relation("HiringManager")
   recruitedCandidates Candidate[] @relation("Recruiter")
 }
@@ -33,6 +36,10 @@ model Location {
   id       String  @id @default(cuid())
   name     String  @unique
   isActive Boolean @default(true)
+
+  // ✅ Manager assigned to this location
+  managerId String?
+  manager   User?   @relation(fields: [managerId], references: [id], onDelete: SetNull)
 
   appointments          Appointment[]
   managerAvailabilities ManagerAvailability[]
