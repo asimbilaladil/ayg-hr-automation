@@ -54,6 +54,7 @@ model Candidate {
   dateApplied   String?
   status        String   @default("pending")
   emailId       String   @unique
+  resumeUrl     String   // ✅ NEW FIELD
 
   posting_rel     Posting  @relation(fields: [postingId], references: [id])
   postingId       String
