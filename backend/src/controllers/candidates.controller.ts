@@ -79,11 +79,10 @@ export async function resetProblematic(req: Request, res: Response, next: NextFu
 export async function updateStatus(req: Request, res: Response, next: NextFunction) {
   try {
     const { emailId } = req.params;
-    const { status, resumeUrl } = req.body;
+    const { status } = req.body;
 
     const candidate = await service.updateCandidateStatus(emailId, {
       status,
-      resumeUrl,
     });
 
     res.json(candidate);
