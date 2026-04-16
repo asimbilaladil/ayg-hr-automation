@@ -42,6 +42,7 @@ async function findOrCreateManager(managerName: string): Promise<string | null> 
       data: {
         name: trimmedName,
         email: tempEmail,
+        role: 'MANAGER'
       },
     });
   }
