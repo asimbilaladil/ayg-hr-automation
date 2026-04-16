@@ -42,10 +42,6 @@ model Appointment {
   manager_rel    User?    @relation("ManagerAppointments", fields: [managerId], references: [id])
   managerId      String?
 
-  // Optional text fallback (your API uses these)
-  managerName    String?
-  managerEmail   String?
-
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 }
@@ -64,10 +60,6 @@ model ManagerAvailability {
 
   manager_rel    User     @relation("ManagerAvailabilityRelation", fields: [managerId], references: [id])
   managerId      String
-
-  // Optional text fallback
-  managerName    String?
-  managerEmail   String?
 
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
