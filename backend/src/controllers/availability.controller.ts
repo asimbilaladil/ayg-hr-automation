@@ -66,7 +66,14 @@ export async function getSuggestions(req: Request, res: Response, next: NextFunc
       return res.status(400).json({ error: 'location is required' });
     }
 
-    const result = await service.getSuggestedSlots(location);
+    const today = new Date();
+
+    const result = await service.getSuggestedSlots({
+      location,
+      date: today.toISOString().slice(0, 10),
+      dayOfWeek: today.toLocaleString('en-US', { weekday: 'long' }),
+    });
+
     res.json(result);
   } catch (err) {
     next(err);
@@ -86,7 +93,7 @@ export async function validateSlot(req: Request, res: Response, next: NextFuncti
     const result = await service.validateSlot({
       location: String(location),
       date: String(date),
-      time: String(time),
+      startTime: String(time),
     });
 
     res.json(result);
