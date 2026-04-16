@@ -7,91 +7,47 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum Role {
-  ADMIN
-  MANAGER
-  HR
-}
-
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  name         String
-  role         Role     @default(HR)
-  passwordHash String?
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id    String @id @default(cuid())
+  name  String
+  email String @unique
 
-  managedCandidates     Candidate[]           @relation("HiringManager")
-  managerAvailabilities ManagerAvailability[]
-  appointments          Appointment[]
+  // Relations
+  appointments          Appointment[]         @relation("ManagerAppointments")
+  managerAvailabilities ManagerAvailability[] @relation("ManagerAvailabilityRelation")
 }
 
 model Location {
-  id        String   @id @default(cuid())
-  name      String   @unique
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  candidates            Candidate[]
-  managerAvailabilities ManagerAvailability[]
-  appointments          Appointment[]
-}
-
-model Posting {
-  id        String   @id @default(cuid())
-  name      String   @unique
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  candidates Candidate[]
-}
-
-model Candidate {
-  id                String    @id @default(cuid())
-  candidateName     String
-  phone             String?
-  dateApplied       String?
-  status            String    @default("pending")
-  receivedAt        DateTime?
-  emailId           String    @unique
-  aiScore           Float?
-  aiRecommendation  String?
-  aiCriteriaMet     String?
-  aiCriteriaMissing String?
-  aiSummary         String?
-  reviewedAt        DateTime?
-  called            String?
-  transcript        String?   @db.Text
-  resumeUrl         String?
-  deletedAt         DateTime?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-
-  // Foreign keys - REQUIRED
-  postingId       String
-  locationId      String
-  hiringManagerId String?
+  id       String  @id @default(cuid())
+  name     String
+  isActive Boolean @default(true)
 
   // Relations
-  posting           Posting   @relation(fields: [postingId], references: [id])
-  location          Location  @relation(fields: [locationId], references: [id])
-  hiringManager     User?     @relation("HiringManager", fields: [hiringManagerId], references: [id])
+  appointments          Appointment[]
+  managerAvailabilities ManagerAvailability[]
+}
 
-  // Backward compatibility fields (can be removed after full migration)
-  postingName   String? // Deprecated - use posting relation
-  hiringManager_text String? @map("hiringManager") // Deprecated - use hiringManager relation
+model Appointment {
+  id              String   @id @default(cuid())
+  candidateName   String
+  interviewDate   DateTime
+  startTime       String
+  endTime         String?
+  slotDuration    String
 
-  @@index([status])
-  @@index([locationId])
-  @@index([postingId])
-  @@index([postingName]) // Remove after migration
-  @@index([emailId])
-  @@index([deletedAt])
-  @@index([hiringManagerId])
+  // ✅ RELATIONS (match your code)
+  location_rel   Location @relation(fields: [locationId], references: [id])
+  locationId     String
+
+  manager_rel    User?    @relation("ManagerAppointments", fields: [managerId], references: [id])
+  managerId      String?
+
+  // Optional text fallback (your API uses these)
+  managerName    String?
+  managerEmail   String?
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
 
 model ManagerAvailability {
@@ -99,45 +55,20 @@ model ManagerAvailability {
   dayOfWeek    String
   startTime    String
   endTime      String
-  slotDuration String   @default("20 Min")
-  active       Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  slotDuration String
+  active       Boolean
 
-  // Foreign keys - REQUIRED
-  locationId String
-  managerId  String
+  // ✅ RELATIONS (match your code)
+  location_rel   Location @relation(fields: [locationId], references: [id])
+  locationId     String
 
-  // Relations
-  location Location @relation(fields: [locationId], references: [id])
-  manager  User     @relation(fields: [managerId], references: [id])
-  @@index([locationId])
-  @@index([managerId])
-  @@index([dayOfWeek])
-}
+  manager_rel    User     @relation("ManagerAvailabilityRelation", fields: [managerId], references: [id])
+  managerId      String
 
-model Appointment {
-  id            String   @id @default(cuid())
-  candidateName String
-  jobRole       String?
-  interviewDate DateTime
-  day           String?
-  startTime     String
-  endTime       String
-  slotDuration  String   @default("20 min")
-  active        Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  // Optional text fallback
+  managerName    String?
+  managerEmail   String?
 
-  // Foreign keys - REQUIRED
-  locationId String
-  managerId  String?
-
-  // Relations
-  location Location @relation(fields: [locationId], references: [id])
-  manager  User?    @relation(fields: [managerId], references: [id])
-
-  @@index([interviewDate])
-  @@index([locationId])
-  @@index([managerId])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
