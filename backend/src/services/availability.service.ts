@@ -172,8 +172,8 @@ export async function listAvailability(query: AvailabilityQuery) {
   const data = await prisma.managerAvailability.findMany({
     where,
     include: {
-      location: true,
-      manager: {
+      location_rel: true,
+      manager_rel: {
         select: {
           id: true,
           name: true,
@@ -182,7 +182,7 @@ export async function listAvailability(query: AvailabilityQuery) {
         },
       },
     },
-    orderBy: [{ location: { name: 'asc' } }, { dayOfWeek: 'asc' }],
+    orderBy: [{ location_rel: { name: 'asc' } }, { dayOfWeek: 'asc' }],
   });
 
   return { data, total: data.length };
@@ -207,8 +207,8 @@ export async function getAvailabilitySlots(query: SlotsQuery & { limit?: number 
       active: true,
     },
     include: {
-      location: true,
-      manager: {
+      location_rel: true,
+      manager_rel: {
         select: {
           id: true,
           name: true,
@@ -231,7 +231,7 @@ export async function getAvailabilitySlots(query: SlotsQuery & { limit?: number 
       active: true,
     },
     include: {
-      manager: {
+      manager_rel: {
         select: {
           email: true,
         },
@@ -248,11 +248,11 @@ export async function getAvailabilitySlots(query: SlotsQuery & { limit?: number 
     booked.map((a) => {
       const normalizedTime = normalize12HourTo24Hour(a.startTime);
       console.log(
-        `  → Booked: ${a.startTime} → ${normalizedTime} (${a.manager?.email || 'any manager'})`
+        `  → Booked: ${a.startTime} → ${normalizedTime} (${a.manager_rel?.email || 'any manager'})`
       );
 
-      return a.manager?.email
-        ? `${a.manager.email}__${normalizedTime}`
+      return a.manager_rel?.email
+        ? `${a.manager_rel.email}__${normalizedTime}`
         : `ANY__${normalizedTime}`;
     })
   );
@@ -269,7 +269,7 @@ export async function getAvailabilitySlots(query: SlotsQuery & { limit?: number 
       const slotStart = minutesToTime(t);
       const slotEnd = minutesToTime(t + duration);
 
-      const managerKey = `${window.manager.email}__${slotStart}`;
+      const managerKey = `${window.manager_rel!.email}__${slotStart}`;
       const anyManagerKey = `ANY__${slotStart}`;
 
       if (!bookedSlots.has(managerKey) && !bookedSlots.has(anyManagerKey)) {
@@ -279,12 +279,12 @@ export async function getAvailabilitySlots(query: SlotsQuery & { limit?: number 
           startTime: slotStart,
           endTime: slotEnd,
           displayTime: formatTo12Hour(slotStart),
-          managerName: window.manager.name,
-          managerEmail: window.manager.email,
-          location: window.location.name,
+          managerName: window.manager_rel!.name,
+          managerEmail: window.manager_rel!.email,
+          location: window.location_rel!.name,
         });
       } else {
-        console.log(`  ✖ Slot blocked: ${slotStart} for ${window.manager.email}`);
+        console.log(`  ✖ Slot blocked: ${slotStart} for ${window.manager_rel!.email}`);
       }
     }
   }
@@ -378,8 +378,8 @@ export async function getAvailabilityById(id: string) {
   const item = await prisma.managerAvailability.findUnique({
     where: { id },
     include: {
-      location: true,
-      manager: {
+      location_rel: true,
+      manager_rel: {
         select: {
           id: true,
           name: true,
@@ -409,10 +409,13 @@ export async function createAvailability(data: CreateAvailabilityInput) {
       endTime: data.endTime,
       slotDuration: data.slotDuration,
       active: data.active,
+      location: data.location,
+      managerName: data.managerName,
+      managerEmail: data.managerEmail,
     },
     include: {
-      location: true,
-      manager: {
+      location_rel: true,
+      manager_rel: {
         select: {
           id: true,
           name: true,
@@ -445,15 +448,15 @@ export async function updateAvailability(id: string, data: UpdateAvailabilityInp
   // Handle manager update
   if (data.managerName && data.managerEmail) {
     const managerId = await findOrCreateManager(data.managerName, data.managerEmail);
-    updateData.managerId = managerId;
+    updateData.manager_relId = managerId;
   }
 
   return prisma.managerAvailability.update({
     where: { id },
     data: updateData,
     include: {
-      location: true,
-      manager: {
+      location_rel: true,
+      manager_rel: {
         select: {
           id: true,
           name: true,

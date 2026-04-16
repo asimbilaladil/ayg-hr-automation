@@ -70,9 +70,9 @@ model Candidate {
   hiringManagerId String?
   recruiterId     String?
 
-  locationRel      Location? @relation(fields: [locationId], references: [id])
-  hiringManagerRel User?     @relation("HiringManager", fields: [hiringManagerId], references: [id])
-  recruiterRel     User?     @relation("Recruiter", fields: [recruiterId], references: [id])
+  location_rel      Location? @relation(fields: [locationId], references: [id])
+  hiringManager_rel User?     @relation("HiringManager", fields: [hiringManagerId], references: [id])
+  recruiter_rel     User?     @relation("Recruiter", fields: [recruiterId], references: [id])
 
   @@index([status])
   @@index([location])
@@ -100,8 +100,8 @@ model ManagerAvailability {
   locationId String?
   managerId  String?
 
-  locationRel Location? @relation(fields: [locationId], references: [id])
-  managerRel  User?     @relation(fields: [managerId], references: [id])
+  location_rel Location? @relation(fields: [locationId], references: [id])
+  manager_rel  User?     @relation(fields: [managerId], references: [id])
 
   @@index([location])
   @@index([locationId])
@@ -128,8 +128,8 @@ model Appointment {
   locationId String?
   managerId  String?
 
-  locationRel Location? @relation(fields: [locationId], references: [id])
-  managerRel  User?     @relation(fields: [managerId], references: [id])
+  location_rel Location? @relation(fields: [locationId], references: [id])
+  manager_rel  User?     @relation(fields: [managerId], references: [id])
 
   @@index([interviewDate])
   @@index([location])

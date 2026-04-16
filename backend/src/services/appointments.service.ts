@@ -143,8 +143,8 @@ export async function listAppointments(query: AppointmentQuery) {
     prisma.appointment.findMany({
       where,
       include: {
-        location: true,
-        manager: {
+        location_rel: true,
+        manager_rel: {
           select: {
             id: true,
             name: true,
@@ -167,8 +167,8 @@ export async function getAppointmentById(id: string) {
   const appointment = await prisma.appointment.findFirst({
     where: { id, active: true },
     include: {
-      location: true,
-      manager: {
+      location_rel: true,
+      manager_rel: {
         select: {
           id: true,
           name: true,
@@ -216,12 +216,15 @@ export async function createAppointment(data: CreateAppointmentInput) {
       endTime: data.endTime || endTime,
       slotDuration: data.slotDuration,
       active: true,
+      location: data.location || "",
+      managerName: data.managerName,
+      managerEmail: data.managerEmail,
       locationId,
       managerId,
     },
     include: {
-      location: true,
-      manager: {
+      location_rel: true,
+      manager_rel: {
         select: {
           id: true,
           name: true,
@@ -265,8 +268,8 @@ export async function updateAppointment(id: string, data: UpdateAppointmentInput
     where: { id },
     data: updateData,
     include: {
-      location: true,
-      manager: {
+      location_rel: true,
+      manager_rel: {
         select: {
           id: true,
           name: true,

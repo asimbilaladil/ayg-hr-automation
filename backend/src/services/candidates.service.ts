@@ -121,8 +121,8 @@ export async function listCandidates(query: CandidateQuery) {
     prisma.candidate.findMany({
       where,
       include: {
-        location: true,
-        hiringManager: {
+        location_rel: true,
+        hiringManager_rel: {
           select: {
             id: true,
             name: true,
@@ -130,7 +130,7 @@ export async function listCandidates(query: CandidateQuery) {
             role: true,
           },
         },
-        recruiter: {
+        recruiter_rel: {
           select: {
             id: true,
             name: true,
@@ -153,8 +153,8 @@ export async function getCandidateById(id: string) {
   const candidate = await prisma.candidate.findFirst({
     where: { id, deletedAt: null },
     include: {
-      location: true,
-      hiringManager: {
+      location_rel: true,
+      hiringManager_rel: {
         select: {
           id: true,
           name: true,
@@ -162,7 +162,7 @@ export async function getCandidateById(id: string) {
           role: true,
         },
       },
-      recruiter: {
+      recruiter_rel: {
         select: {
           id: true,
           name: true,
@@ -180,8 +180,8 @@ export async function getCandidateByEmailId(emailId: string) {
   const candidate = await prisma.candidate.findFirst({
     where: { emailId, deletedAt: null },
     include: {
-      location: true,
-      hiringManager: {
+      location_rel: true,
+      hiringManager_rel: {
         select: {
           id: true,
           name: true,
@@ -189,7 +189,7 @@ export async function getCandidateByEmailId(emailId: string) {
           role: true,
         },
       },
-      recruiter: {
+      recruiter_rel: {
         select: {
           id: true,
           name: true,
@@ -226,13 +226,14 @@ export async function createCandidate(data: CreateCandidateInput) {
       status: data.status,
       receivedAt: data.receivedAt ? new Date(data.receivedAt) : undefined,
       emailId: data.emailId,
+      location: data.location,
       locationId,
       hiringManagerId,
       recruiterId,
     },
     include: {
-      location: true,
-      hiringManager: {
+      location_rel: true,
+      hiringManager_rel: {
         select: {
           id: true,
           name: true,
@@ -240,7 +241,7 @@ export async function createCandidate(data: CreateCandidateInput) {
           role: true,
         },
       },
-      recruiter: {
+      recruiter_rel: {
         select: {
           id: true,
           name: true,
@@ -263,8 +264,8 @@ export async function updateAIReview(emailId: string, data: UpdateAIReviewInput)
       reviewedAt: data.reviewedAt ? new Date(data.reviewedAt) : undefined,
     },
     include: {
-      location: true,
-      hiringManager: {
+      location_rel: true,
+      hiringManager_rel: {
         select: {
           id: true,
           name: true,
@@ -272,7 +273,7 @@ export async function updateAIReview(emailId: string, data: UpdateAIReviewInput)
           role: true,
         },
       },
-      recruiter: {
+      recruiter_rel: {
         select: {
           id: true,
           name: true,
@@ -292,8 +293,8 @@ export async function updateCallResult(emailId: string, data: UpdateCallResultIn
     where: { emailId },
     data,
     include: {
-      location: true,
-      hiringManager: {
+      location_rel: true,
+      hiringManager_rel: {
         select: {
           id: true,
           name: true,
@@ -301,7 +302,7 @@ export async function updateCallResult(emailId: string, data: UpdateCallResultIn
           role: true,
         },
       },
-      recruiter: {
+      recruiter_rel: {
         select: {
           id: true,
           name: true,
@@ -348,8 +349,8 @@ export async function updateCandidate(id: string, data: UpdateCandidateInput) {
     where: { id },
     data: updateData,
     include: {
-      location: true,
-      hiringManager: {
+      location_rel: true,
+      hiringManager_rel: {
         select: {
           id: true,
           name: true,
@@ -357,7 +358,7 @@ export async function updateCandidate(id: string, data: UpdateCandidateInput) {
           role: true,
         },
       },
-      recruiter: {
+      recruiter_rel: {
         select: {
           id: true,
           name: true,
@@ -410,8 +411,8 @@ export async function updateCandidateStatus(
       ...(data.resumeUrl && { resumeUrl: data.resumeUrl }),
     },
     include: {
-      location: true,
-      hiringManager: {
+      location_rel: true,
+      hiringManager_rel: {
         select: {
           id: true,
           name: true,
@@ -419,7 +420,7 @@ export async function updateCandidateStatus(
           role: true,
         },
       },
-      recruiter: {
+      recruiter_rel: {
         select: {
           id: true,
           name: true,
