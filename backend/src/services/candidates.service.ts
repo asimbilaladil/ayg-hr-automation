@@ -189,3 +189,35 @@ export async function updateCandidate(id: string, data: UpdateCandidateInput) {
 export async function deleteCandidate(id: string) {
   return prisma.candidate.delete({ where: { id } });
 }
+
+// ✅ BACKWARD COMPATIBILITY METHODS
+export const updateCandidateStatus = updateCandidate;
+
+export async function updateAIReview(emailId: string, data: any) {
+  return prisma.candidate.update({
+    where: { emailId },
+    data: {
+      status: data.status || 'reviewed'
+    }
+  });
+}
+
+export async function updateCallResult(emailId: string, data: any) {
+  return prisma.candidate.update({
+    where: { emailId },
+    data: {
+      status: data.status || 'called'
+    }
+  });
+}
+
+export async function resetProblematicCandidates() {
+  return prisma.candidate.updateMany({
+    where: {
+      status: 'problematic'
+    },
+    data: {
+      status: 'pending'
+    }
+  });
+}
