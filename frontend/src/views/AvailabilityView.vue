@@ -118,42 +118,39 @@
 
               <!-- Location Dropdown -->
               <div class="col-span-2">
-                <label class="label">Location *</label>
+                <label class="label">
+                  Location *
+                  <span v-if="!form.managerId" class="text-red-500 text-xs ml-1">(Select manager first)</span>
+                  <span v-else-if="loading_locations" class="text-blue-500 text-xs ml-1">(Loading locations...)</span>
+                </label>
                 <select
                   v-model="form.locationId"
                   class="input"
                   required
-                  :disabled="!form.managerId || managerLocations.length === 0"
+                  :disabled="!form.managerId || loading_locations"
+                  :class="{ 'opacity-50 bg-gray-100': !form.managerId || loading_locations }"
                 >
-                  <option value="">{{ form.managerId ? 'Select location…' : 'Select manager first' }}</option>
+                  <option value="">
+                    {{ loading_locations ? 'Loading locations...' : (!form.managerId ? 'Select manager first' : (managerLocations.length === 0 ? 'No locations available' : 'Select location…')) }}
+                  </option>
                   <option v-for="l in managerLocations" :key="l.id" :value="l.id">
                     {{ l.name }}
                   </option>
                 </select>
-                <p v-if="form.managerId && managerLocations.length === 1" class="text-xs text-gray-400 mt-1">
-                  Only location available for this manager
+                <p v-if="form.managerId && managerLocations.length === 1" class="text-xs text-green-600 mt-1">
+                  ✓ Only location available (auto-selected)
+                </p>
+                <p v-else-if="form.managerId && managerLocations.length > 1" class="text-xs text-blue-600 mt-1">
+                  {{ managerLocations.length }} locations available - select one
                 </p>
               </div>
 
               <!-- Day of Week -->
-              <div>
+              <div class="col-span-2">
                 <label class="label">Day of Week *</label>
                 <select v-model="form.dayOfWeek" class="input" required>
                   <option value="">Select day…</option>
                   <option v-for="d in DAYS" :key="d" :value="d">{{ d }}</option>
-                </select>
-              </div>
-
-              <!-- Slot Duration -->
-              <div>
-                <label class="label">Slot Duration *</label>
-                <select v-model="form.slotDuration" class="input" required>
-                  <option value="">Select duration…</option>
-                  <option value="15 Min">15 Min</option>
-                  <option value="20 Min">20 Min</option>
-                  <option value="30 Min">30 Min</option>
-                  <option value="45 Min">45 Min</option>
-                  <option value="60 Min">60 Min</option>
                 </select>
               </div>
 
@@ -249,16 +246,18 @@ async function fetchData() {
 const managers = ref([])
 const managerLocations = ref([])
 const loading_dropdowns = ref(false)
+const loading_locations = ref(false)
 
 async function loadDropdownData() {
   loading_dropdowns.value = true
   try {
-    const [managersRes] = await Promise.all([
-      availabilityApi.getAllManagers(),
-    ])
-    managers.value = managersRes.data || []
+    const managersRes = await availabilityApi.getAllManagers()
+    const managersData = managersRes.data || managersRes || []
+    managers.value = Array.isArray(managersData) ? managersData : []
+    console.log('Loaded managers:', managers.value)
   } catch (err) {
-    console.error('Failed to load dropdown data:', err)
+    console.error('Failed to load managers:', err)
+    formError.value = 'Failed to load managers list'
   } finally {
     loading_dropdowns.value = false
   }
@@ -266,20 +265,40 @@ async function loadDropdownData() {
 
 async function onManagerChange() {
   managerLocations.value = []
-  if (!form.managerId) return
+  form.locationId = ''
 
+  if (!form.managerId) {
+    console.log('No manager selected')
+    return
+  }
+
+  loading_locations.value = true
   try {
-    const { data } = await availabilityApi.getManagerLocations(form.managerId)
-    managerLocations.value = data || []
+    console.log('Fetching locations for manager:', form.managerId)
+    const response = await availabilityApi.getManagerLocations(form.managerId)
+    const locationData = response.data || response || []
+
+    console.log('Received locations:', locationData)
+    managerLocations.value = Array.isArray(locationData) ? locationData : []
+
+    if (managerLocations.value.length === 0) {
+      console.warn('No locations available for this manager')
+      formError.value = 'No locations available for this manager'
+      return
+    }
 
     // Auto-select if only one location
     if (managerLocations.value.length === 1) {
       form.locationId = managerLocations.value[0].id
+      console.log('Auto-selected location:', form.locationId)
     } else {
-      form.locationId = ''
+      console.log('Multiple locations available, user must select')
     }
   } catch (err) {
     console.error('Failed to load manager locations:', err)
+    formError.value = 'Failed to load locations for this manager'
+  } finally {
+    loading_locations.value = false
   }
 }
 
@@ -293,14 +312,14 @@ const formError = ref('')
 const form = reactive({
   managerId: '', locationId: '',
   dayOfWeek: '', startTime: '', endTime: '',
-  slotDuration: '20 Min', active: true
+  slotDuration: '15 Min', active: true
 })
 
 function resetForm() {
   Object.assign(form, {
     managerId: '', locationId: '',
     dayOfWeek: '', startTime: '', endTime: '',
-    slotDuration: '20 Min', active: true
+    slotDuration: '15 Min', active: true
   })
   managerLocations.value = []
 }
@@ -309,6 +328,7 @@ function openCreate() {
   resetForm()
   modalMode.value = 'create'
   formError.value = ''
+  console.log('Opening create modal, form reset:', form)
   modal.value = true
 }
 
@@ -322,7 +342,7 @@ async function openEdit(s) {
     dayOfWeek: s.dayOfWeek || '',
     startTime: s.startTime || '',
     endTime: s.endTime || '',
-    slotDuration: s.slotDuration || '20 Min',
+    slotDuration: s.slotDuration || '15 Min',
     active: s.active !== false,
   })
 
