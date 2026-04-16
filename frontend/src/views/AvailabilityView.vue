@@ -111,7 +111,7 @@
                 <select v-model="form.managerId" class="input" required @change="onManagerChange">
                   <option value="">Select manager…</option>
                   <option v-for="m in managers" :key="m.id" :value="m.id">
-                    {{ m.name }} ({{ m.email }})
+                    {{ m.name }}
                   </option>
                 </select>
               </div>

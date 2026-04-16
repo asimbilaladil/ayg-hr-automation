@@ -311,7 +311,7 @@ export async function deleteAvailability(id: string) {
 export async function getAllManagers() {
   const managers = await prisma.user.findMany({
     where: {
-      role: { in: ['MANAGER', 'ADMIN'] },
+      role: { in: ['MANAGER'] },
     },
     select: {
       id: true,
