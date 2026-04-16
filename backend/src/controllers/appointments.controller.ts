@@ -8,8 +8,8 @@ import {
 
 export async function list(req: Request, res: Response, next: NextFunction) {
   try {
-    const query = AppointmentQuerySchema.parse(req.query);
-    const result = await service.listAppointments(query);
+    AppointmentQuerySchema.parse(req.query);
+    const result = await service.listAppointments();
     res.json(result);
   } catch (err) { next(err); }
 }
