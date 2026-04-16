@@ -6,17 +6,15 @@ import {
   UpdateCandidateInput,
   CandidateQuery,
 } from '../schemas/candidate.schema';
+import { findOrCreatePosting } from './postings.service';
 
 /**
  * Helper: Find or create location by name
- * Returns locationId or null
+ * Returns locationId
  */
-async function findOrCreateLocation(locationName: string): Promise<string | null> {
-  if (!locationName) return null;
-
+async function findOrCreateLocation(locationName: string): Promise<string> {
   const trimmedName = locationName.trim();
 
-  // Try to find existing location (case-insensitive)
   let location = await prisma.location.findFirst({
     where: {
       name: {
@@ -26,7 +24,6 @@ async function findOrCreateLocation(locationName: string): Promise<string | null
     },
   });
 
-  // If not found, create it
   if (!location) {
     location = await prisma.location.create({
       data: {
@@ -40,35 +37,27 @@ async function findOrCreateLocation(locationName: string): Promise<string | null
 }
 
 /**
- * Helper: Find or create user/manager by name
- * Creates placeholder user if not found (admin can update email/password later)
+ * Helper: Find or create hiring manager by name
  * Returns userId or null
  */
-async function findOrCreateManager(
-  managerName: string,
-  role: 'MANAGER' | 'HR' = 'MANAGER'
-): Promise<string | null> {
+async function findOrCreateManager(managerName: string): Promise<string | null> {
   if (!managerName) return null;
 
   const trimmedName = managerName.trim();
 
-  // Try to find existing user by name (case-insensitive)
   let manager = await prisma.user.findFirst({
     where: {
       name: {
         equals: trimmedName,
         mode: 'insensitive',
       },
-      role: role,
+      role: 'MANAGER',
     },
   });
 
-  // If not found, create placeholder user
   if (!manager) {
-    // Generate temporary email
     const tempEmail = `${trimmedName.toLowerCase().replace(/\s+/g, '.')}@temp.placeholder`;
 
-    // Check if email already exists
     const existingEmail = await prisma.user.findUnique({
       where: { email: tempEmail },
     });
@@ -81,8 +70,8 @@ async function findOrCreateManager(
       data: {
         name: trimmedName,
         email: tempEmail,
-        role: role,
-        passwordHash: null, // Admin will set password later
+        role: 'MANAGER',
+        passwordHash: null,
         isActive: true,
       },
     });
@@ -113,7 +102,21 @@ export async function listCandidates(query: CandidateQuery) {
     }
   }
 
-  if (postingName) where.postingName = { contains: postingName, mode: 'insensitive' };
+  // Handle posting filter - could be ID or name
+  if (postingName) {
+    const postingRecord = await prisma.posting.findFirst({
+      where: {
+        OR: [
+          { id: postingName },
+          { name: { contains: postingName, mode: 'insensitive' } },
+        ],
+      },
+    });
+    if (postingRecord) {
+      where.postingId = postingRecord.id;
+    }
+  }
+
   if (aiRecommendation) where.aiRecommendation = aiRecommendation;
   if (search) where.candidateName = { contains: search, mode: 'insensitive' };
 
@@ -121,16 +124,9 @@ export async function listCandidates(query: CandidateQuery) {
     prisma.candidate.findMany({
       where,
       include: {
-        location_rel: true,
-        hiringManager_rel: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true,
-          },
-        },
-        recruiter_rel: {
+        posting: true,
+        location: true,
+        hiringManager: {
           select: {
             id: true,
             name: true,
@@ -153,16 +149,9 @@ export async function getCandidateById(id: string) {
   const candidate = await prisma.candidate.findFirst({
     where: { id, deletedAt: null },
     include: {
-      location_rel: true,
-      hiringManager_rel: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          role: true,
-        },
-      },
-      recruiter_rel: {
+      posting: true,
+      location: true,
+      hiringManager: {
         select: {
           id: true,
           name: true,
@@ -180,16 +169,9 @@ export async function getCandidateByEmailId(emailId: string) {
   const candidate = await prisma.candidate.findFirst({
     where: { emailId, deletedAt: null },
     include: {
-      location_rel: true,
-      hiringManager_rel: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          role: true,
-        },
-      },
-      recruiter_rel: {
+      posting: true,
+      location: true,
+      hiringManager: {
         select: {
           id: true,
           name: true,
@@ -204,44 +186,37 @@ export async function getCandidateByEmailId(emailId: string) {
 }
 
 export async function createCandidate(data: CreateCandidateInput) {
+  // Resolve posting name to ID (find or create)
+  const postingId = await findOrCreatePosting(data.postingName);
+
   // Resolve location name to ID (find or create)
   const locationId = await findOrCreateLocation(data.location);
 
   // Resolve hiring manager name to ID (find or create)
   const hiringManagerId = data.hiringManager
-    ? await findOrCreateManager(data.hiringManager, 'MANAGER')
-    : null;
-
-  // Resolve recruiter name to ID (find or create)
-  const recruiterId = data.recruiter
-    ? await findOrCreateManager(data.recruiter, 'HR')
+    ? await findOrCreateManager(data.hiringManager)
     : null;
 
   return prisma.candidate.create({
     data: {
-      postingName: data.postingName,
       candidateName: data.candidateName,
       phone: data.phone,
       dateApplied: data.dateApplied,
       status: data.status,
       receivedAt: data.receivedAt ? new Date(data.receivedAt) : undefined,
       emailId: data.emailId,
-      location: data.location,
+      postingId,
       locationId,
       hiringManagerId,
-      recruiterId,
+      // Backward compatibility - store text values too
+      postingName: data.postingName,
+      location_text: data.location,
+      hiringManager_text: data.hiringManager,
     },
     include: {
-      location_rel: true,
-      hiringManager_rel: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          role: true,
-        },
-      },
-      recruiter_rel: {
+      posting: true,
+      location: true,
+      hiringManager: {
         select: {
           id: true,
           name: true,
@@ -264,16 +239,9 @@ export async function updateAIReview(emailId: string, data: UpdateAIReviewInput)
       reviewedAt: data.reviewedAt ? new Date(data.reviewedAt) : undefined,
     },
     include: {
-      location_rel: true,
-      hiringManager_rel: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          role: true,
-        },
-      },
-      recruiter_rel: {
+      posting: true,
+      location: true,
+      hiringManager: {
         select: {
           id: true,
           name: true,
@@ -293,16 +261,9 @@ export async function updateCallResult(emailId: string, data: UpdateCallResultIn
     where: { emailId },
     data,
     include: {
-      location_rel: true,
-      hiringManager_rel: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          role: true,
-        },
-      },
-      recruiter_rel: {
+      posting: true,
+      location: true,
+      hiringManager: {
         select: {
           id: true,
           name: true,
@@ -318,47 +279,41 @@ export async function updateCandidate(id: string, data: UpdateCandidateInput) {
   const candidate = await prisma.candidate.findFirst({ where: { id, deletedAt: null } });
   if (!candidate) throw new Error('NOT_FOUND');
 
-  // Resolve location if provided
-  const locationId = data.location
-    ? await findOrCreateLocation(data.location)
-    : undefined;
-
-  // Resolve hiring manager if provided
-  const hiringManagerId = data.hiringManager
-    ? await findOrCreateManager(data.hiringManager, 'MANAGER')
-    : undefined;
-
-  // Resolve recruiter if provided
-  const recruiterId = data.recruiter
-    ? await findOrCreateManager(data.recruiter, 'HR')
-    : undefined;
-
-  // Build update data object
   const updateData: any = {
-    ...(data.postingName && { postingName: data.postingName }),
     ...(data.candidateName && { candidateName: data.candidateName }),
     ...(data.phone !== undefined && { phone: data.phone }),
     ...(data.dateApplied !== undefined && { dateApplied: data.dateApplied }),
     ...(data.status && { status: data.status }),
-    ...(locationId !== undefined && { locationId }),
-    ...(hiringManagerId !== undefined && { hiringManagerId }),
-    ...(recruiterId !== undefined && { recruiterId }),
   };
+
+  // Resolve posting if provided
+  if (data.postingName) {
+    const postingId = await findOrCreatePosting(data.postingName);
+    updateData.postingId = postingId;
+    updateData.postingName = data.postingName; // Backward compatibility
+  }
+
+  // Resolve location if provided
+  if (data.location) {
+    const locationId = await findOrCreateLocation(data.location);
+    updateData.locationId = locationId;
+    updateData.location_text = data.location; // Backward compatibility
+  }
+
+  // Resolve hiring manager if provided
+  if (data.hiringManager) {
+    const hiringManagerId = await findOrCreateManager(data.hiringManager);
+    updateData.hiringManagerId = hiringManagerId;
+    updateData.hiringManager_text = data.hiringManager; // Backward compatibility
+  }
 
   return prisma.candidate.update({
     where: { id },
     data: updateData,
     include: {
-      location_rel: true,
-      hiringManager_rel: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          role: true,
-        },
-      },
-      recruiter_rel: {
+      posting: true,
+      location: true,
+      hiringManager: {
         select: {
           id: true,
           name: true,
@@ -411,16 +366,9 @@ export async function updateCandidateStatus(
       ...(data.resumeUrl && { resumeUrl: data.resumeUrl }),
     },
     include: {
-      location_rel: true,
-      hiringManager_rel: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          role: true,
-        },
-      },
-      recruiter_rel: {
+      posting: true,
+      location: true,
+      hiringManager: {
         select: {
           id: true,
           name: true,

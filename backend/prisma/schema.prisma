@@ -23,10 +23,9 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  managedCandidates       Candidate[]           @relation("HiringManager")
-  recruitedCandidates     Candidate[]           @relation("Recruiter")
-  managerAvailabilities   ManagerAvailability[]
-  appointments            Appointment[]
+  managedCandidates     Candidate[]           @relation("HiringManager")
+  managerAvailabilities ManagerAvailability[]
+  appointments          Appointment[]
 }
 
 model Location {
@@ -36,20 +35,26 @@ model Location {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  candidates              Candidate[]
-  managerAvailabilities   ManagerAvailability[]
-  appointments            Appointment[]
+  candidates            Candidate[]
+  managerAvailabilities ManagerAvailability[]
+  appointments          Appointment[]
+}
+
+model Posting {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  candidates Candidate[]
 }
 
 model Candidate {
   id                String    @id @default(cuid())
-  postingName       String
-  location          String
   candidateName     String
   phone             String?
   dateApplied       String?
-  hiringManager     String?
-  recruiter         String?
   status            String    @default("pending")
   receivedAt        DateTime?
   emailId           String    @unique
@@ -66,29 +71,32 @@ model Candidate {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
-  locationId      String?
+  // Foreign keys - REQUIRED
+  postingId       String
+  locationId      String
   hiringManagerId String?
-  recruiterId     String?
 
-  location_rel      Location? @relation(fields: [locationId], references: [id])
-  hiringManager_rel User?     @relation("HiringManager", fields: [hiringManagerId], references: [id])
-  recruiter_rel     User?     @relation("Recruiter", fields: [recruiterId], references: [id])
+  // Relations
+  posting           Posting   @relation(fields: [postingId], references: [id])
+  location          Location  @relation(fields: [locationId], references: [id])
+  hiringManager     User?     @relation("HiringManager", fields: [hiringManagerId], references: [id])
+
+  // Backward compatibility fields (can be removed after full migration)
+  postingName   String? // Deprecated - use posting relation
+  location_text String? @map("location") // Deprecated - use location relation
+  hiringManager_text String? @map("hiringManager") // Deprecated - use hiringManager relation
 
   @@index([status])
-  @@index([location])
   @@index([locationId])
-  @@index([postingName])
+  @@index([postingId])
+  @@index([postingName]) // Remove after migration
   @@index([emailId])
   @@index([deletedAt])
   @@index([hiringManagerId])
-  @@index([recruiterId])
 }
 
 model ManagerAvailability {
   id           String   @id @default(cuid())
-  location     String
-  managerName  String
-  managerEmail String
   dayOfWeek    String
   startTime    String
   endTime      String
@@ -97,13 +105,19 @@ model ManagerAvailability {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  locationId String?
-  managerId  String?
+  // Foreign keys - REQUIRED
+  locationId String
+  managerId  String
 
-  location_rel Location? @relation(fields: [locationId], references: [id])
-  manager_rel  User?     @relation(fields: [managerId], references: [id])
+  // Relations
+  location Location @relation(fields: [locationId], references: [id])
+  manager  User     @relation(fields: [managerId], references: [id])
 
-  @@index([location])
+  // Backward compatibility fields (can be removed after full migration)
+  location_text     String? @map("location") // Deprecated - use location relation
+  managerName_text  String? @map("managerName") // Deprecated - use manager relation
+  managerEmail_text String? @map("managerEmail") // Deprecated - use manager relation
+
   @@index([locationId])
   @@index([managerId])
   @@index([dayOfWeek])
@@ -111,9 +125,6 @@ model ManagerAvailability {
 
 model Appointment {
   id            String   @id @default(cuid())
-  location      String
-  managerName   String?
-  managerEmail  String?
   candidateName String
   jobRole       String?
   interviewDate DateTime
@@ -125,15 +136,20 @@ model Appointment {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  locationId String?
+  // Foreign keys - REQUIRED
+  locationId String
   managerId  String?
 
-  location_rel Location? @relation(fields: [locationId], references: [id])
-  manager_rel  User?     @relation(fields: [managerId], references: [id])
+  // Relations
+  location Location @relation(fields: [locationId], references: [id])
+  manager  User?    @relation(fields: [managerId], references: [id])
+
+  // Backward compatibility fields (can be removed after full migration)
+  location_text     String? @map("location") // Deprecated - use location relation
+  managerName_text  String? @map("managerName") // Deprecated - use manager relation
+  managerEmail_text String? @map("managerEmail") // Deprecated - use manager relation
 
   @@index([interviewDate])
-  @@index([location])
   @@index([locationId])
   @@index([managerId])
-  @@index([managerEmail])
 }
