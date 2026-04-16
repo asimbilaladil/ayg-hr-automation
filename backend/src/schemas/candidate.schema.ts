@@ -10,7 +10,7 @@ export const CreateCandidateSchema = z.object({
   status: z.string().default('pending'),
   receivedAt: z.string().datetime().optional(),
   emailId: z.string().min(1),
-  resumeUrl: z.string().min(1), // ✅ REQUIRED
+  resumeUrl: z.string().optional(),
 });
 
 export const UpdateAIReviewSchema = z.object({
