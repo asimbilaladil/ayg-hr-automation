@@ -10,7 +10,7 @@
 
     <!-- Filters -->
     <div class="card p-4">
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
         <div>
           <input
             v-model="filters.search"
@@ -38,6 +38,14 @@
             v-model="filters.location"
             class="input"
             placeholder="Filter by location…"
+            @input="onSearch"
+          />
+        </div>
+        <div>
+          <input
+            v-model="filters.hiringManager"
+            class="input"
+            placeholder="Filter by hiring manager…"
             @input="onSearch"
           />
         </div>
@@ -74,6 +82,7 @@
               <th class="text-left px-4 py-3 font-semibold text-gray-600 whitespace-nowrap">Candidate</th>
               <th class="text-left px-4 py-3 font-semibold text-gray-600 whitespace-nowrap">Position</th>
               <th class="text-left px-4 py-3 font-semibold text-gray-600 whitespace-nowrap">Location</th>
+              <th class="text-left px-4 py-3 font-semibold text-gray-600 whitespace-nowrap">Hiring Manager</th>
               <th class="text-left px-4 py-3 font-semibold text-gray-600 whitespace-nowrap">Status</th>
               <th class="text-left px-4 py-3 font-semibold text-gray-600 whitespace-nowrap">AI Score</th>
               <th class="text-left px-4 py-3 font-semibold text-gray-600 whitespace-nowrap">AI Rec</th>
@@ -113,6 +122,7 @@
               </td>
               <td class="px-4 py-3 text-gray-700 max-w-[180px] truncate">{{ c.postingName }}</td>
               <td class="px-4 py-3 text-gray-600 whitespace-nowrap">{{ c.location }}</td>
+              <td class="px-4 py-3 text-gray-600 text-sm">{{ c.hiringManager || '—' }}</td>
               <td class="px-4 py-3"><StatusBadge :status="c.status" /></td>
               <td class="px-4 py-3">
                 <div v-if="c.aiScore != null" class="flex items-center gap-2">
@@ -196,13 +206,14 @@ const filters = reactive({
   status: '',
   aiRecommendation: '',
   location: '',
+  hiringManager: '',
   sortBy: 'createdAt',
   sortOrder: 'desc',
 })
 
 const totalPages = computed(() => Math.ceil(total.value / limit))
 const hasActiveFilters = computed(() =>
-  filters.search || filters.status || filters.aiRecommendation || filters.location
+  filters.search || filters.status || filters.aiRecommendation || filters.location || filters.hiringManager
 )
 
 // Drawer
@@ -225,6 +236,7 @@ function clearFilters() {
   filters.status = ''
   filters.aiRecommendation = ''
   filters.location = ''
+  filters.hiringManager = ''
   page.value = 1
   fetchData()
 }
@@ -237,6 +249,7 @@ async function fetchData() {
     if (filters.status) params.status = filters.status
     if (filters.aiRecommendation) params.aiRecommendation = filters.aiRecommendation
     if (filters.location) params.location = filters.location
+    if (filters.hiringManager) params.hiringManager = filters.hiringManager
     params.sortBy = filters.sortBy
     params.sortOrder = filters.sortOrder
 

@@ -49,6 +49,23 @@ async function findOrCreateManager(managerName: string): Promise<string | null> 
   return manager.id;
 }
 
+// Helper function to flatten candidate response
+function flattenCandidate(candidate: any) {
+  return {
+    ...candidate,
+    candidateName: candidate.name,
+    postingName: candidate.posting_rel?.name || null,
+    location: candidate.location_rel?.name || null,
+    hiringManager: candidate.hiringManager_rel?.name || null,
+    recruiter: candidate.recruiter_rel?.name || null,
+    // Remove the nested objects
+    posting_rel: undefined,
+    location_rel: undefined,
+    hiringManager_rel: undefined,
+    recruiter_rel: undefined,
+  };
+}
+
 export async function listCandidates(query: CandidateQuery) {
   const { location, postingName, search, page, limit, sortBy, sortOrder } = query;
 
@@ -87,6 +104,8 @@ export async function listCandidates(query: CandidateQuery) {
         posting_rel: true,
         location_rel: true,
         hiringManager_rel: true,
+        recruiter_rel: true,
+        appointment: true,
       },
       orderBy: { [sortBy]: sortOrder },
       skip: (page - 1) * limit,
@@ -95,7 +114,7 @@ export async function listCandidates(query: CandidateQuery) {
     prisma.candidate.count({ where }),
   ]);
 
-  return { data, total, page, limit };
+  return { data: data.map(flattenCandidate), total, page, limit };
 }
 
 export async function getCandidateById(id: string) {
@@ -105,11 +124,13 @@ export async function getCandidateById(id: string) {
       posting_rel: true,
       location_rel: true,
       hiringManager_rel: true,
+      recruiter_rel: true,
+      appointment: true,
     },
   });
 
   if (!candidate) throw new Error('NOT_FOUND');
-  return candidate;
+  return flattenCandidate(candidate);
 }
 
 export async function getCandidateByEmailId(emailId: string) {
@@ -119,11 +140,13 @@ export async function getCandidateByEmailId(emailId: string) {
       posting_rel: true,
       location_rel: true,
       hiringManager_rel: true,
+      recruiter_rel: true,
+      appointment: true,
     },
   });
 
   if (!candidate) throw new Error('NOT_FOUND');
-  return candidate;
+  return flattenCandidate(candidate);
 }
 
 export async function createCandidate(data: CreateCandidateInput) {
@@ -133,7 +156,7 @@ export async function createCandidate(data: CreateCandidateInput) {
     ? await findOrCreateManager(data.hiringManager)
     : null;
 
-  return prisma.candidate.create({
+  const candidate = await prisma.candidate.create({
     data: {
       name: data.candidateName,
       phone: data.phone,
@@ -149,8 +172,12 @@ export async function createCandidate(data: CreateCandidateInput) {
       posting_rel: true,
       location_rel: true,
       hiringManager_rel: true,
+      recruiter_rel: true,
+      appointment: true,
     },
   });
+
+  return flattenCandidate(candidate);
 }
 
 export async function updateCandidate(id: string, data: UpdateCandidateInput) {
@@ -177,15 +204,19 @@ export async function updateCandidate(id: string, data: UpdateCandidateInput) {
     updateData.hiringManagerId = await findOrCreateManager(data.hiringManager);
   }
 
-  return prisma.candidate.update({
+  const updated = await prisma.candidate.update({
     where: { id },
     data: updateData,
     include: {
       posting_rel: true,
       location_rel: true,
       hiringManager_rel: true,
+      recruiter_rel: true,
+      appointment: true,
     },
   });
+
+  return flattenCandidate(updated);
 }
 
 export async function deleteCandidate(id: string) {
@@ -195,21 +226,37 @@ export async function deleteCandidate(id: string) {
 export const updateCandidateStatus = updateCandidate;
 
 export async function updateAIReview(emailId: string, data: any) {
-  return prisma.candidate.update({
+  const updated = await prisma.candidate.update({
     where: { emailId },
     data: {
       status: data.status || 'reviewed'
+    },
+    include: {
+      posting_rel: true,
+      location_rel: true,
+      hiringManager_rel: true,
+      recruiter_rel: true,
+      appointment: true,
     }
   });
+  return flattenCandidate(updated);
 }
 
 export async function updateCallResult(emailId: string, data: any) {
-  return prisma.candidate.update({
+  const updated = await prisma.candidate.update({
     where: { emailId },
     data: {
       status: data.status || 'called'
+    },
+    include: {
+      posting_rel: true,
+      location_rel: true,
+      hiringManager_rel: true,
+      recruiter_rel: true,
+      appointment: true,
     }
   });
+  return flattenCandidate(updated);
 }
 
 export async function resetProblematicCandidates() {

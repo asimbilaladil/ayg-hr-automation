@@ -80,14 +80,25 @@
 
           <!-- Details grid -->
           <div class="grid grid-cols-2 gap-4">
+            <InfoField label="Position" :value="candidate?.postingName" />
             <InfoField label="Location" :value="candidate?.location" />
             <InfoField label="Phone" :value="candidate?.phone" />
+            <InfoField label="Email" :value="candidate?.emailId" />
             <InfoField label="Hiring Manager" :value="candidate?.hiringManager" />
             <InfoField label="Recruiter" :value="candidate?.recruiter" />
             <InfoField label="Date Applied" :value="candidate?.dateApplied" />
-            <InfoField label="Received At" :value="formatDate(candidate?.receivedAt)" />
-            <InfoField label="Reviewed At" :value="formatDate(candidate?.reviewedAt)" />
-            <InfoField label="Called" :value="candidate?.called" />
+            <InfoField label="Date Added" :value="formatDate(candidate?.createdAt)" />
+          </div>
+
+          <!-- Appointment info -->
+          <div v-if="candidate?.appointment" class="border-t border-gray-200 pt-4 mt-4">
+            <h4 class="text-sm font-semibold text-gray-700 mb-3">Scheduled Appointment</h4>
+            <div class="grid grid-cols-2 gap-4 bg-blue-50 rounded-lg p-4">
+              <InfoField label="Interview Date" :value="formatDate(candidate.appointment.interviewDate)" />
+              <InfoField label="Location" :value="candidate.appointment.location_rel?.name" />
+              <InfoField label="Start Time" :value="candidate.appointment.startTime" />
+              <InfoField label="End Time" :value="candidate.appointment.endTime || '—'" />
+            </div>
           </div>
 
           <!-- AI Summary -->
@@ -119,9 +130,13 @@
         <div v-if="activeTab === 'edit'" class="p-6">
           <form @submit.prevent="saveEdit" class="space-y-4">
             <div class="grid grid-cols-2 gap-4">
-              <div>
+              <div class="col-span-2">
                 <label class="label">Candidate Name</label>
                 <input v-model="editForm.candidateName" class="input" />
+              </div>
+              <div>
+                <label class="label">Email</label>
+                <input v-model="editForm.emailId" class="input" type="email" disabled />
               </div>
               <div>
                 <label class="label">Phone</label>
@@ -152,6 +167,10 @@
                 <select v-model="editForm.status" class="input">
                   <option v-for="s in STATUSES" :key="s" :value="s">{{ capitalize(s) }}</option>
                 </select>
+              </div>
+              <div class="col-span-2">
+                <label class="label">Resume URL</label>
+                <input v-model="editForm.resumeUrl" class="input" type="url" placeholder="https://…" />
               </div>
             </div>
 
@@ -241,12 +260,14 @@ const STATUSES = ['pending', 'reviewing', 'reviewed', 'called', 'scheduled', 're
 const editForm = reactive({
   candidateName: '',
   phone: '',
+  emailId: '',
   postingName: '',
   location: '',
   hiringManager: '',
   recruiter: '',
   dateApplied: '',
   status: '',
+  resumeUrl: '',
 })
 
 watch(() => props.candidate, (c) => {
@@ -254,12 +275,14 @@ watch(() => props.candidate, (c) => {
   Object.assign(editForm, {
     candidateName: c.candidateName || '',
     phone: c.phone || '',
+    emailId: c.emailId || '',
     postingName: c.postingName || '',
     location: c.location || '',
     hiringManager: c.hiringManager || '',
     recruiter: c.recruiter || '',
     dateApplied: c.dateApplied || '',
     status: c.status || '',
+    resumeUrl: c.resumeUrl || '',
   })
   activeTab.value = 'overview'
 }, { immediate: true })
