@@ -3,39 +3,28 @@ import { CreateAppointmentInput, UpdateAppointmentInput } from "../schemas/appoi
 
 export class AppointmentService {
 
-  // 🔹 CREATE APPOINTMENT
-  static async create(data: CreateAppointmentInput) {
-
-    // 🔹 Candidate (by emailId)
+  static async create(data: any) {
     const candidate = await prisma.candidate.findFirst({
       where: { emailId: data.emailId }
     });
 
-    if (!candidate) {
-      throw new Error("Candidate not found");
-    }
+    if (!candidate) throw new Error("Candidate not found");
 
-    // 🔹 Location
     const location = await prisma.location.findFirst({
       where: { name: data.location }
     });
 
-    if (!location) {
-      throw new Error("Location not found");
-    }
+    if (!location) throw new Error("Location not found");
 
-    // 🔹 Manager (optional)
     let managerId: string | undefined;
 
     if (data.managerEmail) {
       const manager = await prisma.user.findFirst({
         where: { email: data.managerEmail }
       });
-
       managerId = manager?.id;
     }
 
-    // 🔥 enforce single appointment per candidate
     await prisma.appointment.deleteMany({
       where: { candidateId: candidate.id }
     });
@@ -58,7 +47,6 @@ export class AppointmentService {
     });
   }
 
-  // 🔹 GET ALL APPOINTMENTS
   static async findAll() {
     return prisma.appointment.findMany({
       include: {
@@ -66,13 +54,10 @@ export class AppointmentService {
         location_rel: true,
         manager_rel: true
       },
-      orderBy: {
-        createdAt: "desc"
-      }
+      orderBy: { createdAt: "desc" }
     });
   }
 
-  // 🔹 GET BY ID
   static async findById(id: string) {
     return prisma.appointment.findUnique({
       where: { id },
@@ -84,36 +69,25 @@ export class AppointmentService {
     });
   }
 
-  // 🔹 UPDATE
-  static async update(id: string, data: UpdateAppointmentInput) {
-
+  static async update(id: string, data: any) {
     let locationId: string | undefined;
     let managerId: string | undefined;
 
     if (data.location) {
-      const location = await prisma.location.findFirst({
-        where: { name: data.location }
-      });
-
+      const location = await prisma.location.findFirst({ where: { name: data.location } });
       if (!location) throw new Error("Location not found");
-
       locationId = location.id;
     }
 
     if (data.managerEmail) {
-      const manager = await prisma.user.findFirst({
-        where: { email: data.managerEmail }
-      });
-
+      const manager = await prisma.user.findFirst({ where: { email: data.managerEmail } });
       managerId = manager?.id;
     }
 
     return prisma.appointment.update({
       where: { id },
       data: {
-        interviewDate: data.interviewDate
-          ? new Date(data.interviewDate)
-          : undefined,
+        interviewDate: data.interviewDate ? new Date(data.interviewDate) : undefined,
         startTime: data.startTime,
         endTime: data.endTime,
         slotDuration: data.slotDuration,
@@ -128,10 +102,14 @@ export class AppointmentService {
     });
   }
 
-  // 🔹 DELETE
   static async delete(id: string) {
-    return prisma.appointment.delete({
-      where: { id }
-    });
+    return prisma.appointment.delete({ where: { id } });
   }
 }
+
+// backward compatibility for controllers
+export const listAppointments = AppointmentService.findAll;
+export const getAppointmentById = AppointmentService.findById;
+export const createAppointment = AppointmentService.create;
+export const updateAppointment = AppointmentService.update;
+export const deleteAppointment = AppointmentService.delete;
