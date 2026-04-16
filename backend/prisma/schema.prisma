@@ -57,7 +57,7 @@ model Candidate {
   recruiter_rel    User?   @relation("Recruiter", fields: [recruiterId], references: [id])
   recruiterId      String?
 
-  appointments     Appointment[]
+  appointment      Appointment?
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
