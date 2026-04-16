@@ -115,6 +115,17 @@ export async function listAvailability(query: AvailabilityQuery) {
   return { data, total: data.length };
 }
 
+// ✅ NEW: get by id
+export async function getAvailabilityById(id: string) {
+  return prisma.managerAvailability.findUnique({
+    where: { id },
+    include: {
+      location_rel: true,
+      manager_rel: true,
+    },
+  });
+}
+
 export async function getAvailabilitySlots(query: SlotsQuery & { limit?: number }) {
   const { location, dayOfWeek, date, limit } = query;
 
@@ -193,6 +204,30 @@ export async function getAvailabilitySlots(query: SlotsQuery & { limit?: number 
   return {
     slots: limit ? slots.slice(0, limit) : slots,
   };
+}
+
+// ✅ alias for controller
+export const getSuggestedSlots = getAvailabilitySlots;
+
+// ✅ simple validation
+export async function validateSlot(input: any) {
+  const { location, date, startTime } = input;
+
+  const locationRecord = await prisma.location.findFirst({
+    where: { name: { contains: location, mode: 'insensitive' } },
+  });
+
+  if (!locationRecord) return { valid: false };
+
+  const existing = await prisma.appointment.findFirst({
+    where: {
+      locationId: locationRecord.id,
+      interviewDate: new Date(date),
+      startTime,
+    },
+  });
+
+  return { valid: !existing };
 }
 
 export async function createAvailability(data: CreateAvailabilityInput) {
