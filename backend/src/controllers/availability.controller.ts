@@ -101,3 +101,34 @@ export async function validateSlot(req: Request, res: Response, next: NextFuncti
     next(err);
   }
 }
+
+// ✅ NEW: Get all managers
+export async function getAllManagers(req: Request, res: Response, next: NextFunction) {
+  try {
+    const managers = await service.getAllManagers();
+    res.json(managers);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ✅ NEW: Get locations for a specific manager
+export async function getManagerLocations(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { managerId } = req.params;
+    const locations = await service.getManagerLocations(managerId);
+    res.json(locations);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ✅ NEW: Get all locations
+export async function getAllLocations(req: Request, res: Response, next: NextFunction) {
+  try {
+    const locations = await service.getAllLocations();
+    res.json(locations);
+  } catch (err) {
+    next(err);
+  }
+}

@@ -8,6 +8,19 @@ import {
 
 const TIMEZONE = 'America/Chicago';
 
+// Helper function to flatten availability response
+function flattenAvailability(availability: any) {
+  return {
+    ...availability,
+    managerName: availability.manager_rel?.name || null,
+    managerEmail: availability.manager_rel?.email || null,
+    location: availability.location_rel?.name || null,
+    // Remove nested objects
+    manager_rel: undefined,
+    location_rel: undefined,
+  };
+}
+
 function timeToMinutes(time: string): number {
   const [h, m] = time.split(':').map(Number);
   return h * 60 + m;
@@ -112,18 +125,20 @@ export async function listAvailability(query: AvailabilityQuery) {
     orderBy: [{ location_rel: { name: 'asc' } }, { dayOfWeek: 'asc' }],
   });
 
-  return { data, total: data.length };
+  return { data: data.map(flattenAvailability), total: data.length };
 }
 
 // ✅ NEW: get by id
 export async function getAvailabilityById(id: string) {
-  return prisma.managerAvailability.findUnique({
+  const availability = await prisma.managerAvailability.findUnique({
     where: { id },
     include: {
       location_rel: true,
       manager_rel: true,
     },
   });
+  if (!availability) return null;
+  return flattenAvailability(availability);
 }
 
 export async function getAvailabilitySlots(query: SlotsQuery & { limit?: number }) {
@@ -234,7 +249,7 @@ export async function createAvailability(data: CreateAvailabilityInput) {
   const locationId = await findOrCreateLocation(data.location);
   const managerId = await findOrCreateManager(data.managerName, data.managerEmail);
 
-  return prisma.managerAvailability.create({
+  const availability = await prisma.managerAvailability.create({
     data: {
       locationId,
       managerId,
@@ -249,6 +264,8 @@ export async function createAvailability(data: CreateAvailabilityInput) {
       manager_rel: true,
     },
   });
+
+  return flattenAvailability(availability);
 }
 
 export async function updateAvailability(id: string, data: UpdateAvailabilityInput) {
@@ -271,7 +288,7 @@ export async function updateAvailability(id: string, data: UpdateAvailabilityInp
     updateData.managerId = await findOrCreateManager(data.managerName, data.managerEmail);
   }
 
-  return prisma.managerAvailability.update({
+  const updated = await prisma.managerAvailability.update({
     where: { id },
     data: updateData,
     include: {
@@ -279,6 +296,8 @@ export async function updateAvailability(id: string, data: UpdateAvailabilityInp
       manager_rel: true,
     },
   });
+
+  return flattenAvailability(updated);
 }
 
 export async function deleteAvailability(id: string) {
@@ -286,4 +305,61 @@ export async function deleteAvailability(id: string) {
   if (!existing) throw new Error('NOT_FOUND');
 
   return prisma.managerAvailability.delete({ where: { id } });
+}
+
+// ✅ NEW: Get all managers for dropdown
+export async function getAllManagers() {
+  const managers = await prisma.user.findMany({
+    where: {
+      role: { in: ['MANAGER', 'ADMIN'] },
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+    },
+    orderBy: { name: 'asc' },
+  });
+  return managers;
+}
+
+// ✅ NEW: Get locations for a specific manager
+export async function getManagerLocations(managerId: string) {
+  const locations = await prisma.managerAvailability.findMany({
+    where: {
+      managerId,
+    },
+    select: {
+      locationId: true,
+      location_rel: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
+    distinct: ['locationId'],
+  });
+
+  // Extract unique locations
+  const uniqueLocations = Array.from(
+    new Map(locations.map(l => [l.locationId, l.location_rel])).values()
+  );
+
+  return uniqueLocations;
+}
+
+// ✅ NEW: Get all locations
+export async function getAllLocations() {
+  const locations = await prisma.location.findMany({
+    where: {
+      isActive: true,
+    },
+    select: {
+      id: true,
+      name: true,
+    },
+    orderBy: { name: 'asc' },
+  });
+  return locations;
 }

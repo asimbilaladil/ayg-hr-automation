@@ -55,6 +55,10 @@ export const availabilityApi = {
   create: (data) => api.post('/api/availability', data),
   update: (id, data) => api.patch(`/api/availability/${id}`, data),
   remove: (id) => api.delete(`/api/availability/${id}`),
+  // ✅ NEW: Dropdowns data
+  getAllManagers: () => api.get('/api/availability/managers/list'),
+  getManagerLocations: (managerId) => api.get(`/api/availability/managers/${managerId}/locations`),
+  getAllLocations: () => api.get('/api/availability/locations/list'),
 }
 
 // ── Users ────────────────────────────────────────────────────────────────────

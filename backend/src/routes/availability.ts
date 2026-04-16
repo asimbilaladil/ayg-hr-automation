@@ -12,6 +12,9 @@ router.get('/validate',apiKeyAuth, ctrl.validateSlot);
 
 // Frontend endpoints
 router.get('/', auth, rbac('HR'), ctrl.list);
+router.get('/managers/list', auth, rbac('HR'), ctrl.getAllManagers);
+router.get('/managers/:managerId/locations', auth, rbac('HR'), ctrl.getManagerLocations);
+router.get('/locations/list', auth, rbac('HR'), ctrl.getAllLocations);
 router.get('/:id', auth, rbac('MANAGER'), ctrl.getById);
 router.post('/', auth, rbac('MANAGER'), ctrl.create);
 router.patch('/:id', auth, rbac('MANAGER'), ctrl.update);

@@ -105,36 +105,50 @@
           </h3>
           <form @submit.prevent="saveModal" class="space-y-4">
             <div class="grid grid-cols-2 gap-4">
-              <div>
-                <label class="label">Manager Name</label>
-                <input v-model="form.managerName" class="input" required />
+              <!-- Manager Dropdown -->
+              <div class="col-span-2">
+                <label class="label">Manager *</label>
+                <select v-model="form.managerId" class="input" required @change="onManagerChange">
+                  <option value="">Select manager…</option>
+                  <option v-for="m in managers" :key="m.id" :value="m.id">
+                    {{ m.name }} ({{ m.email }})
+                  </option>
+                </select>
               </div>
-              <div>
-                <label class="label">Manager Email</label>
-                <input v-model="form.managerEmail" class="input" type="email" required />
+
+              <!-- Location Dropdown -->
+              <div class="col-span-2">
+                <label class="label">Location *</label>
+                <select
+                  v-model="form.locationId"
+                  class="input"
+                  required
+                  :disabled="!form.managerId || managerLocations.length === 0"
+                >
+                  <option value="">{{ form.managerId ? 'Select location…' : 'Select manager first' }}</option>
+                  <option v-for="l in managerLocations" :key="l.id" :value="l.id">
+                    {{ l.name }}
+                  </option>
+                </select>
+                <p v-if="form.managerId && managerLocations.length === 1" class="text-xs text-gray-400 mt-1">
+                  Only location available for this manager
+                </p>
               </div>
+
+              <!-- Day of Week -->
               <div>
-                <label class="label">Location</label>
-                <input v-model="form.location" class="input" required />
-              </div>
-              <div>
-                <label class="label">Day of Week</label>
+                <label class="label">Day of Week *</label>
                 <select v-model="form.dayOfWeek" class="input" required>
                   <option value="">Select day…</option>
                   <option v-for="d in DAYS" :key="d" :value="d">{{ d }}</option>
                 </select>
               </div>
+
+              <!-- Slot Duration -->
               <div>
-                <label class="label">Start Time</label>
-                <input v-model="form.startTime" class="input" placeholder="09:00" required />
-              </div>
-              <div>
-                <label class="label">End Time</label>
-                <input v-model="form.endTime" class="input" placeholder="17:00" required />
-              </div>
-              <div>
-                <label class="label">Slot Duration</label>
-                <select v-model="form.slotDuration" class="input">
+                <label class="label">Slot Duration *</label>
+                <select v-model="form.slotDuration" class="input" required>
+                  <option value="">Select duration…</option>
                   <option value="15 Min">15 Min</option>
                   <option value="20 Min">20 Min</option>
                   <option value="30 Min">30 Min</option>
@@ -142,8 +156,22 @@
                   <option value="60 Min">60 Min</option>
                 </select>
               </div>
+
+              <!-- Start Time -->
               <div>
-                <label class="label">Active</label>
+                <label class="label">Start Time *</label>
+                <input v-model="form.startTime" class="input" placeholder="09:00" type="time" required />
+              </div>
+
+              <!-- End Time -->
+              <div>
+                <label class="label">End Time *</label>
+                <input v-model="form.endTime" class="input" placeholder="17:00" type="time" required />
+              </div>
+
+              <!-- Active Status -->
+              <div class="col-span-2">
+                <label class="label">Status</label>
                 <select v-model="form.active" class="input">
                   <option :value="true">Active</option>
                   <option :value="false">Inactive</option>
@@ -217,6 +245,44 @@ async function fetchData() {
   }
 }
 
+// Dropdown data
+const managers = ref([])
+const managerLocations = ref([])
+const loading_dropdowns = ref(false)
+
+async function loadDropdownData() {
+  loading_dropdowns.value = true
+  try {
+    const [managersRes] = await Promise.all([
+      availabilityApi.getAllManagers(),
+    ])
+    managers.value = managersRes.data || []
+  } catch (err) {
+    console.error('Failed to load dropdown data:', err)
+  } finally {
+    loading_dropdowns.value = false
+  }
+}
+
+async function onManagerChange() {
+  managerLocations.value = []
+  if (!form.managerId) return
+
+  try {
+    const { data } = await availabilityApi.getManagerLocations(form.managerId)
+    managerLocations.value = data || []
+
+    // Auto-select if only one location
+    if (managerLocations.value.length === 1) {
+      form.locationId = managerLocations.value[0].id
+    } else {
+      form.locationId = ''
+    }
+  } catch (err) {
+    console.error('Failed to load manager locations:', err)
+  }
+}
+
 // Modal
 const modal = ref(false)
 const modalMode = ref('create')
@@ -225,13 +291,18 @@ const saving = ref(false)
 const formError = ref('')
 
 const form = reactive({
-  managerName: '', managerEmail: '', location: '',
+  managerId: '', locationId: '',
   dayOfWeek: '', startTime: '', endTime: '',
   slotDuration: '20 Min', active: true
 })
 
 function resetForm() {
-  Object.assign(form, { managerName: '', managerEmail: '', location: '', dayOfWeek: '', startTime: '', endTime: '', slotDuration: '20 Min', active: true })
+  Object.assign(form, {
+    managerId: '', locationId: '',
+    dayOfWeek: '', startTime: '', endTime: '',
+    slotDuration: '20 Min', active: true
+  })
+  managerLocations.value = []
 }
 
 function openCreate() {
@@ -241,18 +312,30 @@ function openCreate() {
   modal.value = true
 }
 
-function openEdit(s) {
+async function openEdit(s) {
   editTarget.value = s
+  const selectedManager = managers.value.find(m => m.name === s.managerName && m.email === s.managerEmail)
+
   Object.assign(form, {
-    managerName: s.managerName || '',
-    managerEmail: s.managerEmail || '',
-    location: s.location || '',
+    managerId: selectedManager?.id || '',
+    locationId: '',
     dayOfWeek: s.dayOfWeek || '',
     startTime: s.startTime || '',
     endTime: s.endTime || '',
     slotDuration: s.slotDuration || '20 Min',
     active: s.active !== false,
   })
+
+  // Load manager locations if manager exists
+  if (form.managerId) {
+    await onManagerChange()
+    // Find the location ID from the location name
+    const selectedLocation = managerLocations.value.find(l => l.name === s.location)
+    if (selectedLocation) {
+      form.locationId = selectedLocation.id
+    }
+  }
+
   modalMode.value = 'edit'
   formError.value = ''
   modal.value = true
@@ -262,11 +345,35 @@ async function saveModal() {
   saving.value = true
   formError.value = ''
   try {
+    // Transform form data for API
+    const manager = managers.value.find(m => m.id === form.managerId)
+    const location = managerLocations.value.find(l => l.id === form.locationId)
+
+    if (!manager) {
+      formError.value = 'Manager is required'
+      return
+    }
+    if (!location) {
+      formError.value = 'Location is required'
+      return
+    }
+
+    const submitData = {
+      managerName: manager.name,
+      managerEmail: manager.email,
+      location: location.name,
+      dayOfWeek: form.dayOfWeek,
+      startTime: form.startTime,
+      endTime: form.endTime,
+      slotDuration: form.slotDuration,
+      active: form.active,
+    }
+
     if (modalMode.value === 'create') {
-      const { data } = await availabilityApi.create(form)
+      const { data } = await availabilityApi.create(submitData)
       slots.value.unshift(data)
     } else {
-      const { data } = await availabilityApi.update(editTarget.value.id, form)
+      const { data } = await availabilityApi.update(editTarget.value.id, submitData)
       const idx = slots.value.findIndex(s => s.id === editTarget.value.id)
       if (idx !== -1) slots.value[idx] = data
     }
@@ -301,5 +408,8 @@ async function doDelete() {
   }
 }
 
-onMounted(fetchData)
+onMounted(() => {
+  fetchData()
+  loadDropdownData()
+})
 </script>
