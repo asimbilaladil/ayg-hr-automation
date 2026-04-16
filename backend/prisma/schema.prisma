@@ -12,38 +12,76 @@ model User {
   name  String
   email String @unique
 
-  // Relations
   appointments          Appointment[]         @relation("ManagerAppointments")
   managerAvailabilities ManagerAvailability[] @relation("ManagerAvailabilityRelation")
+
+  hiringCandidates    Candidate[] @relation("HiringManager")
+  recruitedCandidates Candidate[] @relation("Recruiter")
 }
 
 model Location {
   id       String  @id @default(cuid())
-  name     String
+  name     String  @unique
   isActive Boolean @default(true)
 
-  // Relations
   appointments          Appointment[]
   managerAvailabilities ManagerAvailability[]
+  candidates            Candidate[]
+}
+
+model Posting {
+  id       String  @id @default(cuid())
+  name     String  @unique
+  isActive Boolean @default(true)
+
+  candidates Candidate[]
+}
+
+model Candidate {
+  id            String   @id @default(cuid())
+  name          String
+  phone         String?
+  dateApplied   String?
+  status        String   @default("pending")
+  emailId       String   @unique
+
+  posting_rel     Posting  @relation(fields: [postingId], references: [id])
+  postingId       String
+
+  location_rel    Location @relation(fields: [locationId], references: [id])
+  locationId      String
+
+  hiringManager_rel User?  @relation("HiringManager", fields: [hiringManagerId], references: [id])
+  hiringManagerId   String?
+
+  recruiter_rel    User?   @relation("Recruiter", fields: [recruiterId], references: [id])
+  recruiterId      String?
+
+  appointments     Appointment[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
 model Appointment {
-  id              String   @id @default(cuid())
-  candidateName   String
-  interviewDate   DateTime
-  startTime       String
-  endTime         String?
-  slotDuration    String
+  id            String   @id @default(cuid())
 
-  // ✅ RELATIONS (match your code)
-  location_rel   Location @relation(fields: [locationId], references: [id])
-  locationId     String
+  candidate_rel Candidate @relation(fields: [candidateId], references: [id])
+  candidateId   String   @unique
 
-  manager_rel    User?    @relation("ManagerAppointments", fields: [managerId], references: [id])
-  managerId      String?
+  interviewDate DateTime
+  startTime     String
+  endTime       String?
+  slotDuration  String
 
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  location_rel Location @relation(fields: [locationId], references: [id])
+  locationId   String
+
+  manager_rel  User?    @relation("ManagerAppointments", fields: [managerId], references: [id])
+  managerId    String?
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model ManagerAvailability {
@@ -54,13 +92,12 @@ model ManagerAvailability {
   slotDuration String
   active       Boolean
 
-  // ✅ RELATIONS (match your code)
-  location_rel   Location @relation(fields: [locationId], references: [id])
-  locationId     String
+  location_rel Location @relation(fields: [locationId], references: [id])
+  locationId   String
 
-  manager_rel    User     @relation("ManagerAvailabilityRelation", fields: [managerId], references: [id])
-  managerId      String
+  manager_rel  User     @relation("ManagerAvailabilityRelation", fields: [managerId], references: [id])
+  managerId    String
 
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
