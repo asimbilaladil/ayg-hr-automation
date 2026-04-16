@@ -22,6 +22,23 @@ model User {
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
+  managedCandidates       Candidate[]           @relation("HiringManager")
+  recruitedCandidates     Candidate[]           @relation("Recruiter")
+  managerAvailabilities   ManagerAvailability[]
+  appointments            Appointment[]
+}
+
+model Location {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  candidates              Candidate[]
+  managerAvailabilities   ManagerAvailability[]
+  appointments            Appointment[]
 }
 
 model Candidate {
@@ -49,11 +66,22 @@ model Candidate {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
+  locationId      String?
+  hiringManagerId String?
+  recruiterId     String?
+
+  location_rel  Location? @relation(fields: [locationId], references: [id])
+  hiringManager User?     @relation("HiringManager", fields: [hiringManagerId], references: [id])
+  recruiter     User?     @relation("Recruiter", fields: [recruiterId], references: [id])
+
   @@index([status])
   @@index([location])
+  @@index([locationId])
   @@index([postingName])
   @@index([emailId])
   @@index([deletedAt])
+  @@index([hiringManagerId])
+  @@index([recruiterId])
 }
 
 model ManagerAvailability {
@@ -69,7 +97,15 @@ model ManagerAvailability {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  locationId String?
+  managerId  String?
+
+  location_rel Location? @relation(fields: [locationId], references: [id])
+  manager      User?     @relation(fields: [managerId], references: [id])
+
   @@index([location])
+  @@index([locationId])
+  @@index([managerId])
   @@index([dayOfWeek])
 }
 
@@ -89,7 +125,15 @@ model Appointment {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
+  locationId String?
+  managerId  String?
+
+  location_rel Location? @relation(fields: [locationId], references: [id])
+  manager      User?     @relation(fields: [managerId], references: [id])
+
   @@index([interviewDate])
   @@index([location])
+  @@index([locationId])
+  @@index([managerId])
   @@index([managerEmail])
 }
