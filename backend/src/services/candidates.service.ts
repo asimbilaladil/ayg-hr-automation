@@ -140,6 +140,7 @@ export async function createCandidate(data: CreateCandidateInput) {
       dateApplied: data.dateApplied,
       status: data.status,
       emailId: data.emailId,
+      resumeUrl: data.resumeUrl, // ✅ ADDED
       postingId,
       locationId,
       hiringManagerId,
@@ -161,6 +162,7 @@ export async function updateCandidate(id: string, data: UpdateCandidateInput) {
     ...(data.phone !== undefined && { phone: data.phone }),
     ...(data.dateApplied !== undefined && { dateApplied: data.dateApplied }),
     ...(data.status && { status: data.status }),
+    ...(data.resumeUrl && { resumeUrl: data.resumeUrl }), // ✅ ADDED
   };
 
   if (data.postingName) {
@@ -190,7 +192,6 @@ export async function deleteCandidate(id: string) {
   return prisma.candidate.delete({ where: { id } });
 }
 
-// ✅ BACKWARD COMPATIBILITY METHODS
 export const updateCandidateStatus = updateCandidate;
 
 export async function updateAIReview(emailId: string, data: any) {
