@@ -75,7 +75,7 @@ async function findOrCreateLocation(locationName: string): Promise<string> {
   return location.id;
 }
 
-async function findOrCreateManager(managerName: string, managerEmail: string): Promise<string> {
+async function findOrCreateManager(managerName: string, managerEmail: string, locationIds?: string[]): Promise<string> {
   const trimmedName = managerName.trim();
   const trimmedEmail = managerEmail.trim();
 
@@ -90,6 +90,14 @@ async function findOrCreateManager(managerName: string, managerEmail: string): P
         email: trimmedEmail,
       },
     });
+
+    // If locationIds provided, assign manager to those locations
+    if (locationIds && locationIds.length > 0) {
+      await prisma.location.updateMany({
+        where: { id: { in: locationIds } },
+        data: { managerId: manager.id },
+      });
+    }
   }
 
   return manager.id;
@@ -247,7 +255,8 @@ export async function validateSlot(input: any) {
 
 export async function createAvailability(data: CreateAvailabilityInput) {
   const locationId = await findOrCreateLocation(data.location);
-  const managerId = await findOrCreateManager(data.managerName, data.managerEmail);
+  // Pass locationId so new managers are auto-assigned to this location
+  const managerId = await findOrCreateManager(data.managerName, data.managerEmail, [locationId]);
 
   const availability = await prisma.managerAvailability.create({
     data: {

@@ -24,7 +24,7 @@ async function findOrCreateLocation(locationName: string): Promise<string> {
   return location.id;
 }
 
-async function findOrCreateManager(managerName: string): Promise<string | null> {
+async function findOrCreateManager(managerName: string, locationIds?: string[]): Promise<string | null> {
   if (!managerName) return null;
 
   const trimmedName = managerName.trim();
@@ -45,6 +45,14 @@ async function findOrCreateManager(managerName: string): Promise<string | null> 
         role: 'MANAGER'
       },
     });
+
+    // If locationIds provided, assign manager to those locations
+    if (locationIds && locationIds.length > 0) {
+      await prisma.location.updateMany({
+        where: { id: { in: locationIds } },
+        data: { managerId: manager.id },
+      });
+    }
   }
 
   return manager.id;
@@ -153,8 +161,9 @@ export async function getCandidateByEmailId(emailId: string) {
 export async function createCandidate(data: CreateCandidateInput) {
   const postingId = await findOrCreatePosting(data.postingName);
   const locationId = await findOrCreateLocation(data.location);
+  // Pass locationId so new managers are auto-assigned to this location
   const hiringManagerId = data.hiringManager
-    ? await findOrCreateManager(data.hiringManager)
+    ? await findOrCreateManager(data.hiringManager, [locationId])
     : null;
 
   const candidate = await prisma.candidate.create({
