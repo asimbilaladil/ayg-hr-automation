@@ -5,7 +5,17 @@ export class AppointmentService {
 
   // 🔹 CREATE APPOINTMENT
   static async create(data: CreateAppointmentInput) {
-    // 1. Resolve location
+
+    // 🔹 Candidate (by emailId)
+    const candidate = await prisma.candidate.findFirst({
+      where: { emailId: data.emailId }
+    });
+
+    if (!candidate) {
+      throw new Error("Candidate not found");
+    }
+
+    // 🔹 Location
     const location = await prisma.location.findFirst({
       where: { name: data.location }
     });
@@ -14,8 +24,8 @@ export class AppointmentService {
       throw new Error("Location not found");
     }
 
-    // 2. Resolve manager (optional)
-    let managerId: string | undefined = undefined;
+    // 🔹 Manager (optional)
+    let managerId: string | undefined;
 
     if (data.managerEmail) {
       const manager = await prisma.user.findFirst({
@@ -25,25 +35,26 @@ export class AppointmentService {
       managerId = manager?.id;
     }
 
-    // 3. Create appointment
+    // 🔥 enforce single appointment per candidate
+    await prisma.appointment.deleteMany({
+      where: { candidateId: candidate.id }
+    });
+
     return prisma.appointment.create({
       data: {
-        candidateName: data.candidateName,
+        candidateId: candidate.id,
+        locationId: location.id,
+        managerId,
         interviewDate: new Date(data.interviewDate),
         startTime: data.startTime,
         endTime: data.endTime,
-        slotDuration: data.slotDuration,
-
-        // ✅ FIXED (important)
-        locationId: location.id,
-
-        // optional
-        managerId: managerId,
+        slotDuration: data.slotDuration
       },
       include: {
+        candidate_rel: true,
         location_rel: true,
-        manager_rel: true,
-      },
+        manager_rel: true
+      }
     });
   }
 
@@ -51,12 +62,13 @@ export class AppointmentService {
   static async findAll() {
     return prisma.appointment.findMany({
       include: {
+        candidate_rel: true,
         location_rel: true,
-        manager_rel: true,
+        manager_rel: true
       },
       orderBy: {
-        createdAt: "desc",
-      },
+        createdAt: "desc"
+      }
     });
   }
 
@@ -65,34 +77,32 @@ export class AppointmentService {
     return prisma.appointment.findUnique({
       where: { id },
       include: {
+        candidate_rel: true,
         location_rel: true,
-        manager_rel: true,
-      },
+        manager_rel: true
+      }
     });
   }
 
   // 🔹 UPDATE
   static async update(id: string, data: UpdateAppointmentInput) {
+
     let locationId: string | undefined;
     let managerId: string | undefined;
 
-    // resolve location if provided
     if (data.location) {
       const location = await prisma.location.findFirst({
-        where: { name: data.location },
+        where: { name: data.location }
       });
 
-      if (!location) {
-        throw new Error("Location not found");
-      }
+      if (!location) throw new Error("Location not found");
 
       locationId = location.id;
     }
 
-    // resolve manager if provided
     if (data.managerEmail) {
       const manager = await prisma.user.findFirst({
-        where: { email: data.managerEmail },
+        where: { email: data.managerEmail }
       });
 
       managerId = manager?.id;
@@ -101,29 +111,27 @@ export class AppointmentService {
     return prisma.appointment.update({
       where: { id },
       data: {
-        candidateName: data.candidateName,
         interviewDate: data.interviewDate
           ? new Date(data.interviewDate)
           : undefined,
         startTime: data.startTime,
         endTime: data.endTime,
         slotDuration: data.slotDuration,
-
-        // ✅ FIXED
         locationId,
-        managerId,
+        managerId
       },
       include: {
+        candidate_rel: true,
         location_rel: true,
-        manager_rel: true,
-      },
+        manager_rel: true
+      }
     });
   }
 
-  // 🔹 DELETE (soft delete optional)
+  // 🔹 DELETE
   static async delete(id: string) {
     return prisma.appointment.delete({
-      where: { id },
+      where: { id }
     });
   }
 }
