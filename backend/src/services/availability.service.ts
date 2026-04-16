@@ -36,27 +36,96 @@ function parseDuration(duration: string): number {
   return match ? parseInt(match[1]) : 15;
 }
 
-// Add this helper function at the top with other helpers
+// Helper to normalize 12-hour to 24-hour format
 function normalize12HourTo24Hour(time: string): string {
   // If already in 24-hour format (HH:MM), return as is
   if (!time.includes('AM') && !time.includes('PM')) {
     return time;
   }
-  
+
   // Parse 12-hour format
   const match = time.match(/(\d+):(\d+)\s*(AM|PM)/i);
   if (!match) return time;
-  
+
   let [_, hourStr, minute, period] = match;
   let hour = parseInt(hourStr);
-  
+
   if (period.toUpperCase() === 'PM' && hour !== 12) {
     hour += 12;
   } else if (period.toUpperCase() === 'AM' && hour === 12) {
     hour = 0;
   }
-  
+
   return `${String(hour).padStart(2, '0')}:${minute}`;
+}
+
+// Helper to find or create location
+async function findOrCreateLocation(locationName: string): Promise<string> {
+  const trimmedName = locationName.trim();
+
+  let location = await prisma.location.findFirst({
+    where: {
+      name: {
+        equals: trimmedName,
+        mode: 'insensitive',
+      },
+    },
+  });
+
+  if (!location) {
+    location = await prisma.location.create({
+      data: {
+        name: trimmedName,
+        isActive: true,
+      },
+    });
+  }
+
+  return location.id;
+}
+
+// Helper to find or create manager
+async function findOrCreateManager(managerName: string, managerEmail: string): Promise<string> {
+  const trimmedName = managerName.trim();
+  const trimmedEmail = managerEmail.trim();
+
+  // Try to find by email first
+  let manager = await prisma.user.findFirst({
+    where: {
+      email: {
+        equals: trimmedEmail,
+        mode: 'insensitive',
+      },
+    },
+  });
+
+  // If not found, try by name
+  if (!manager) {
+    manager = await prisma.user.findFirst({
+      where: {
+        name: {
+          equals: trimmedName,
+          mode: 'insensitive',
+        },
+        role: 'MANAGER',
+      },
+    });
+  }
+
+  // Create if not found
+  if (!manager) {
+    manager = await prisma.user.create({
+      data: {
+        name: trimmedName,
+        email: trimmedEmail,
+        role: 'MANAGER',
+        passwordHash: null,
+        isActive: true,
+      },
+    });
+  }
+
+  return manager.id;
 }
 
 // ---------------- TYPES ----------------
@@ -75,32 +144,77 @@ type Slot = {
 // ---------------- SERVICES ----------------
 
 export async function listAvailability(query: AvailabilityQuery) {
-  const where: Record<string, unknown> = {};
+  const where: Record<string, any> = {};
 
-  if (query.location) where.location = { contains: query.location, mode: 'insensitive' };
+  if (query.location) {
+    // Find location by name
+    const location = await prisma.location.findFirst({
+      where: {
+        name: { contains: query.location, mode: 'insensitive' },
+      },
+    });
+    if (location) where.locationId = location.id;
+  }
+
   if (query.dayOfWeek) where.dayOfWeek = { equals: query.dayOfWeek, mode: 'insensitive' };
-  if (query.managerEmail) where.managerEmail = { contains: query.managerEmail, mode: 'insensitive' };
+
+  if (query.managerEmail) {
+    const manager = await prisma.user.findFirst({
+      where: {
+        email: { contains: query.managerEmail, mode: 'insensitive' },
+      },
+    });
+    if (manager) where.managerId = manager.id;
+  }
+
   if (query.active !== undefined) where.active = query.active;
 
   const data = await prisma.managerAvailability.findMany({
     where,
-    orderBy: [{ location: 'asc' }, { managerName: 'asc' }, { dayOfWeek: 'asc' }],
+    include: {
+      location: true,
+      manager: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+        },
+      },
+    },
+    orderBy: [{ location: { name: 'asc' } }, { dayOfWeek: 'asc' }],
   });
 
   return { data, total: data.length };
 }
 
-// Update the getAvailabilitySlots function
-export async function getAvailabilitySlots(
-  query: SlotsQuery & { limit?: number }
-) {
+export async function getAvailabilitySlots(query: SlotsQuery & { limit?: number }) {
   const { location, dayOfWeek, date, limit } = query;
+
+  // Find location
+  const locationRecord = await prisma.location.findFirst({
+    where: {
+      name: { contains: location, mode: 'insensitive' },
+    },
+  });
+
+  if (!locationRecord) return { slots: [] };
 
   const windows = await prisma.managerAvailability.findMany({
     where: {
-      location: { contains: location, mode: 'insensitive' },
+      locationId: locationRecord.id,
       dayOfWeek: { equals: dayOfWeek, mode: 'insensitive' },
       active: true,
+    },
+    include: {
+      location: true,
+      manager: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
     },
   });
 
@@ -112,9 +226,16 @@ export async function getAvailabilitySlots(
 
   const booked = await prisma.appointment.findMany({
     where: {
-      location: { contains: location, mode: 'insensitive' },
+      locationId: locationRecord.id,
       interviewDate: { gte: dateStart, lte: dateEnd },
       active: true,
+    },
+    include: {
+      manager: {
+        select: {
+          email: true,
+        },
+      },
     },
   });
 
@@ -122,16 +243,16 @@ export async function getAvailabilitySlots(
   console.log('📍 Location:', location);
   console.log('🔖 Booked appointments:', booked.length);
 
-  // ✅ FIX: Normalize booked times to 24-hour format for comparison
+  // ✅ Normalize booked times to 24-hour format for comparison
   const bookedSlots = new Set(
     booked.map((a) => {
       const normalizedTime = normalize12HourTo24Hour(a.startTime);
-      console.log(`  → Booked: ${a.startTime} → ${normalizedTime} (${a.managerEmail || 'any manager'})`);
-      
-      // If manager email exists, include it in the key
-      // Otherwise, block the time for ALL managers
-      return a.managerEmail 
-        ? `${a.managerEmail}__${normalizedTime}`
+      console.log(
+        `  → Booked: ${a.startTime} → ${normalizedTime} (${a.manager?.email || 'any manager'})`
+      );
+
+      return a.manager?.email
+        ? `${a.manager.email}__${normalizedTime}`
         : `ANY__${normalizedTime}`;
     })
   );
@@ -145,38 +266,35 @@ export async function getAvailabilitySlots(
     const duration = parseDuration(window.slotDuration || '15 Min');
 
     for (let t = startMinutes; t + duration <= endMinutes; t += duration) {
-      const slotStart = minutesToTime(t); // This is in 24-hour format (HH:MM)
+      const slotStart = minutesToTime(t);
       const slotEnd = minutesToTime(t + duration);
 
-      // Check both manager-specific and ANY bookings
-      const managerKey = `${window.managerEmail}__${slotStart}`;
+      const managerKey = `${window.manager.email}__${slotStart}`;
       const anyManagerKey = `ANY__${slotStart}`;
 
       if (!bookedSlots.has(managerKey) && !bookedSlots.has(anyManagerKey)) {
         slots.push({
           date,
           day: dayOfWeek,
-          startTime: slotStart, // Keep in 24-hour for consistency
+          startTime: slotStart,
           endTime: slotEnd,
-          displayTime: formatTo12Hour(slotStart), // ✅ USA format for display
-          managerName: window.managerName,
-          managerEmail: window.managerEmail,
-          location: window.location,
+          displayTime: formatTo12Hour(slotStart),
+          managerName: window.manager.name,
+          managerEmail: window.manager.email,
+          location: window.location.name,
         });
       } else {
-        console.log(`  ✖ Slot blocked: ${slotStart} for ${window.managerEmail}`);
+        console.log(`  ✖ Slot blocked: ${slotStart} for ${window.manager.email}`);
       }
     }
   }
 
   console.log(`✅ Available slots found: ${slots.length}`);
-  
+
   return {
     slots: limit ? slots.slice(0, limit) : slots,
   };
 }
-
-// ---------------- SUGGESTIONS ----------------
 
 export async function getSuggestedSlots(location: string) {
   const results: any[] = [];
@@ -222,13 +340,7 @@ export async function getSuggestedSlots(location: string) {
   return { suggestions: results };
 }
 
-// ---------------- VALIDATE SLOT ----------------
-
-export async function validateSlot(input: {
-  location: string;
-  date: string;
-  time: string;
-}) {
+export async function validateSlot(input: { location: string; date: string; time: string }) {
   const { location, date, time } = input;
 
   const dayOfWeek = new Date(date).toLocaleDateString('en-US', {
@@ -251,9 +363,7 @@ export async function validateSlot(input: {
     };
   }
 
-  const alternatives = slots
-    .slice(0, 3)
-    .map((s: Slot) => s.displayTime);
+  const alternatives = slots.slice(0, 3).map((s: Slot) => s.displayTime);
 
   return {
     available: false,
@@ -265,20 +375,94 @@ export async function validateSlot(input: {
 // ---------------- CRUD ----------------
 
 export async function getAvailabilityById(id: string) {
-  const item = await prisma.managerAvailability.findUnique({ where: { id } });
+  const item = await prisma.managerAvailability.findUnique({
+    where: { id },
+    include: {
+      location: true,
+      manager: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+        },
+      },
+    },
+  });
   if (!item) throw new Error('NOT_FOUND');
   return item;
 }
 
 export async function createAvailability(data: CreateAvailabilityInput) {
-  return prisma.managerAvailability.create({ data });
+  // Find or create location
+  const locationId = await findOrCreateLocation(data.location);
+
+  // Find or create manager
+  const managerId = await findOrCreateManager(data.managerName, data.managerEmail);
+
+  return prisma.managerAvailability.create({
+    data: {
+      locationId,
+      managerId,
+      dayOfWeek: data.dayOfWeek,
+      startTime: data.startTime,
+      endTime: data.endTime,
+      slotDuration: data.slotDuration,
+      active: data.active,
+    },
+    include: {
+      location: true,
+      manager: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+        },
+      },
+    },
+  });
 }
 
 export async function updateAvailability(id: string, data: UpdateAvailabilityInput) {
   const existing = await prisma.managerAvailability.findUnique({ where: { id } });
   if (!existing) throw new Error('NOT_FOUND');
 
-  return prisma.managerAvailability.update({ where: { id }, data });
+  const updateData: any = {
+    ...(data.dayOfWeek && { dayOfWeek: data.dayOfWeek }),
+    ...(data.startTime && { startTime: data.startTime }),
+    ...(data.endTime && { endTime: data.endTime }),
+    ...(data.slotDuration && { slotDuration: data.slotDuration }),
+    ...(data.active !== undefined && { active: data.active }),
+  };
+
+  // Handle location update
+  if (data.location) {
+    const locationId = await findOrCreateLocation(data.location);
+    updateData.locationId = locationId;
+  }
+
+  // Handle manager update
+  if (data.managerName && data.managerEmail) {
+    const managerId = await findOrCreateManager(data.managerName, data.managerEmail);
+    updateData.managerId = managerId;
+  }
+
+  return prisma.managerAvailability.update({
+    where: { id },
+    data: updateData,
+    include: {
+      location: true,
+      manager: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+        },
+      },
+    },
+  });
 }
 
 export async function deleteAvailability(id: string) {
