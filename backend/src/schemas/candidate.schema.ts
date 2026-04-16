@@ -1,15 +1,16 @@
 import { z } from 'zod';
 
 export const CreateCandidateSchema = z.object({
-  postingName: z.string().min(1), // Will be converted to postingId
-  location: z.string().min(1), // Will be converted to locationId
+  postingName: z.string().min(1),
+  location: z.string().min(1),
   candidateName: z.string().min(1),
   phone: z.string().optional(),
   dateApplied: z.string().optional(),
-  hiringManager: z.string().optional(), // Will be converted to hiringManagerId
+  hiringManager: z.string().optional(),
   status: z.string().default('pending'),
   receivedAt: z.string().datetime().optional(),
   emailId: z.string().min(1),
+  resumeUrl: z.string().min(1), // ✅ REQUIRED
 });
 
 export const UpdateAIReviewSchema = z.object({
@@ -31,19 +32,20 @@ export const UpdateCallResultSchema = z.object({
 });
 
 export const UpdateCandidateSchema = z.object({
-  postingName: z.string().optional(), // Will be converted to postingId
-  location: z.string().optional(), // Will be converted to locationId
+  postingName: z.string().optional(),
+  location: z.string().optional(),
   candidateName: z.string().optional(),
   phone: z.string().optional(),
   dateApplied: z.string().optional(),
-  hiringManager: z.string().optional(), // Will be converted to hiringManagerId
+  hiringManager: z.string().optional(),
   status: z.string().optional(),
+  resumeUrl: z.string().optional(), // ✅ optional in update
 });
 
 export const CandidateQuerySchema = z.object({
   status: z.string().optional(),
-  location: z.string().optional(), // Can be location name or ID
-  postingName: z.string().optional(), // Can be posting name or ID
+  location: z.string().optional(),
+  postingName: z.string().optional(),
   aiRecommendation: z.enum(['HIRE', 'MAYBE', 'REJECT']).optional(),
   search: z.string().optional(),
   page: z.coerce.number().min(1).default(1),
