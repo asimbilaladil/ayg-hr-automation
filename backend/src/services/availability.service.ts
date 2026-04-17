@@ -186,7 +186,7 @@ export async function getAvailabilitySlots(query: SlotsQuery & { limit?: number 
   });
 
   const bookedSlots = new Set(
-    booked.map((a) => {
+    booked.map((a: any) => {
       const normalizedTime = normalize12HourTo24Hour(a.startTime);
       return a.manager_rel?.email
         ? `${a.manager_rel.email}__${normalizedTime}`

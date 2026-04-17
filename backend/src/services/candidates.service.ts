@@ -233,7 +233,22 @@ export async function deleteCandidate(id: string) {
   return prisma.candidate.delete({ where: { id } });
 }
 
-export const updateCandidateStatus = updateCandidate;
+export async function updateCandidateStatus(emailId: string, data: any) {
+  const updated = await prisma.candidate.update({
+    where: { emailId },
+    data: {
+      status: data.status,
+    },
+    include: {
+      posting_rel: true,
+      location_rel: true,
+      hiringManager_rel: true,
+      recruiter_rel: true,
+      appointment: true,
+    }
+  });
+  return flattenCandidate(updated);
+}
 
 export async function updateAIReview(emailId: string, data: any) {
   const updated = await prisma.candidate.update({

@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
-import { Prisma } from '@prisma/client';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 
 export function errorHandler(
   err: unknown,
@@ -17,7 +17,7 @@ export function errorHandler(
     });
   }
 
-  if (err instanceof Prisma.PrismaClientKnownRequestError) {
+  if (err instanceof PrismaClientKnownRequestError) {
     if (err.code === 'P2002') {
       return res.status(409).json({
         error: 'Duplicate entry',
