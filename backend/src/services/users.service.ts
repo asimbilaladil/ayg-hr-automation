@@ -1,5 +1,7 @@
 import { prisma } from '../lib/prisma';
 
+type Role = 'ADMIN' | 'HR' | 'MANAGER';
+
 export async function listUsers() {
   return prisma.user.findMany({
     orderBy: { createdAt: 'desc' },
@@ -16,7 +18,7 @@ export async function getUserById(id: string) {
   return user;
 }
 
-export async function updateUserRole(id: string, role: string) {
+export async function updateUserRole(id: string, role: Role) {
   const user = await prisma.user.findUnique({ where: { id } });
   if (!user) throw new Error('NOT_FOUND');
 
