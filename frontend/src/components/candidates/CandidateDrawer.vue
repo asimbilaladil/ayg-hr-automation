@@ -186,6 +186,7 @@
               <div>
                 <label class="label">Status</label>
                 <select v-model="editForm.status" class="input">
+                  <option value="">Select status…</option>
                   <option v-for="s in STATUSES" :key="s" :value="s">{{ capitalize(s) }}</option>
                 </select>
               </div>
@@ -281,8 +282,12 @@ const STATUSES = ['pending', 'reviewing', 'reviewed', 'called', 'scheduled', 're
 
 // Load dropdown data when drawer opens
 watch(() => props.modelValue, (isOpen) => {
+  console.log('Drawer opened:', isOpen)
   if (isOpen && managers.value.length === 0) {
+    console.log('Loading dropdown data for first time')
     loadDropdownData()
+  } else if (isOpen) {
+    console.log('Managers already loaded:', managers.value.length)
   }
 })
 
@@ -350,16 +355,22 @@ const editSuccess = ref(false)
 async function loadDropdownData() {
   try {
     loadingDropdowns.value = true
+    console.log('Loading dropdown data...')
     const [managersRes, postingsRes] = await Promise.all([
       candidatesApi.getAllManagers(),
       candidatesApi.getAllPostings(),
     ])
+    console.log('Managers response:', managersRes)
+    console.log('Postings response:', postingsRes)
     // Managers endpoint returns array directly
     managers.value = Array.isArray(managersRes.data) ? managersRes.data : managersRes.data?.data || []
     // Postings endpoint returns { data: ... }
     postings.value = postingsRes.data?.data || postingsRes.data || []
+    console.log('Loaded managers:', managers.value)
+    console.log('Loaded postings:', postings.value)
   } catch (err) {
-    console.error('Failed to load dropdown data:', err)
+    console.error('Failed to load dropdown data:', err.message)
+    console.error('Full error:', err)
     managers.value = []
     postings.value = []
   } finally {
