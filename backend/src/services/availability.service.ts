@@ -149,23 +149,48 @@ export async function getAvailabilityById(id: string) {
   return flattenAvailability(availability);
 }
 
+/**
+ * Resolve a location from whatever ID n8n passes.
+ * Handles three cases:
+ *   1. It IS a Location.id              → use directly
+ *   2. It IS a User.id (manager)        → find their assigned Location
+ *   3. It IS a location name (text)     → find by name (backward compat)
+ */
+async function resolveLocation(idOrName: string): Promise<{ id: string; name: string } | null> {
+  // Case 1: try as Location.id
+  const byId = await prisma.location.findUnique({ where: { id: idOrName } });
+  if (byId) return { id: byId.id, name: byId.name };
+
+  // Case 2: try as User (manager) id → find their location
+  const managerLocation = await prisma.location.findFirst({
+    where: { managerId: idOrName, isActive: true },
+  });
+  if (managerLocation) return { id: managerLocation.id, name: managerLocation.name };
+
+  // Case 3: try as location name (backward compatibility)
+  const byName = await prisma.location.findFirst({
+    where: { name: { contains: idOrName, mode: 'insensitive' } },
+  });
+  if (byName) return { id: byName.id, name: byName.name };
+
+  return null;
+}
+
 export async function getAvailabilitySlots(query: SlotsQuery & { limit?: number }) {
   const { locationId, dayOfWeek, date, limit } = query;
 
-  // ── Verify the location exists so we can return its name in slot objects ──
-  const locationRecord = await prisma.location.findUnique({
-    where: { id: locationId },
-  });
+  // ── Resolve location — works with locationId, managerId, or name ─────────
+  const locationRecord = await resolveLocation(locationId);
 
   if (!locationRecord) {
-    console.warn(`getAvailabilitySlots: locationId "${locationId}" not found`);
+    console.warn(`getAvailabilitySlots: cannot resolve location from "${locationId}"`);
     return { slots: [] };
   }
 
   // ── Fetch availability windows for this location + day ────────────────────
   const windows = await prisma.managerAvailability.findMany({
     where: {
-      locationId,                                            // direct FK — no name lookup needed
+      locationId: locationRecord.id,
       dayOfWeek: { equals: dayOfWeek, mode: 'insensitive' },
       active: true,
     },
@@ -183,7 +208,7 @@ export async function getAvailabilitySlots(query: SlotsQuery & { limit?: number 
 
   const booked = await prisma.appointment.findMany({
     where: {
-      locationId,                                            // direct FK
+      locationId: locationRecord.id,
       interviewDate: { gte: dateStart, lte: dateEnd },
     },
     include: { manager_rel: true },
@@ -223,8 +248,8 @@ export async function getAvailabilitySlots(query: SlotsQuery & { limit?: number 
           displayTime:  formatTo12Hour(slotStart),
           managerName:  window.manager_rel!.name,
           managerEmail: window.manager_rel!.email,
-          location:     locationRecord.name,            // use name from DB record
-          locationId,                                   // also expose the id for convenience
+          location:     locationRecord.name,
+          locationId:   locationRecord.id,
         });
       }
     }
@@ -238,26 +263,17 @@ export async function getAvailabilitySlots(query: SlotsQuery & { limit?: number 
 // ✅ alias for controller
 export const getSuggestedSlots = getAvailabilitySlots;
 
-// ✅ Slot validation — accepts locationId (preferred) or location name (fallback)
+// ✅ Slot validation — accepts locationId, managerId, or location name
 export async function validateSlot(input: any) {
   const { locationId, location, date, startTime } = input;
 
-  let resolvedLocationId = locationId;
-
-  // Fallback: resolve by name if only location name was provided
-  if (!resolvedLocationId && location) {
-    const locationRecord = await prisma.location.findFirst({
-      where: { name: { contains: location, mode: 'insensitive' } },
-    });
-    if (!locationRecord) return { valid: false };
-    resolvedLocationId = locationRecord.id;
-  }
-
-  if (!resolvedLocationId) return { valid: false };
+  // resolveLocation handles locationId, managerId, and name fallback
+  const locationRecord = await resolveLocation(locationId || location);
+  if (!locationRecord) return { valid: false };
 
   const existing = await prisma.appointment.findFirst({
     where: {
-      locationId: resolvedLocationId,
+      locationId: locationRecord.id,
       interviewDate: new Date(date),
       startTime,
     },

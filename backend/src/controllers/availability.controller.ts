@@ -61,6 +61,7 @@ export async function remove(req: Request, res: Response, next: NextFunction) {
 export async function getSuggestions(req: Request, res: Response, next: NextFunction) {
   try {
     // Accept locationId (preferred) or location name (fallback for old callers)
+    // Also handles managerId passed as locationId — resolveLocation in service handles it
     const locationId   = req.query.locationId ? String(req.query.locationId) : undefined;
     const locationName = req.query.location   ? String(req.query.location)   : undefined;
 
@@ -68,26 +69,25 @@ export async function getSuggestions(req: Request, res: Response, next: NextFunc
       return res.status(400).json({ error: 'locationId (or location) is required' });
     }
 
-    // Resolve name → id if only name was provided
-    let resolvedLocationId = locationId;
-    if (!resolvedLocationId && locationName) {
-      const { prisma } = await import('../lib/prisma');
-      const rec = await prisma.location.findFirst({
-        where: { name: { contains: locationName, mode: 'insensitive' } },
-      });
-      if (!rec) return res.json({ slots: [] });
-      resolvedLocationId = rec.id;
+    const idOrName = locationId || locationName!;
+
+    // Look ahead up to 7 days to find the next day that has availability slots
+    for (let offset = 0; offset < 7; offset++) {
+      const candidate = new Date();
+      candidate.setDate(candidate.getDate() + offset);
+
+      const date      = candidate.toISOString().slice(0, 10);
+      const dayOfWeek = candidate.toLocaleString('en-US', { weekday: 'long' });
+
+      const result = await service.getSuggestedSlots({ locationId: idOrName, date, dayOfWeek });
+
+      if (result.slots.length > 0) {
+        return res.json(result);
+      }
     }
 
-    const today = new Date();
-
-    const result = await service.getSuggestedSlots({
-      locationId: resolvedLocationId!,
-      date:       today.toISOString().slice(0, 10),
-      dayOfWeek:  today.toLocaleString('en-US', { weekday: 'long' }),
-    });
-
-    res.json(result);
+    // No slots found in the next 7 days
+    res.json({ slots: [] });
   } catch (err) {
     next(err);
   }
