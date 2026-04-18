@@ -38,6 +38,11 @@ export const candidatesApi = {
   getById: (id) => api.get(`/api/candidates/${id}`),
   update: (id, data) => api.patch(`/api/candidates/${id}`, data),
   remove: (id) => api.delete(`/api/candidates/${id}`),
+  getResume: (emailId) => api.get(`/api/candidates/resume/${emailId}`),
+  getAllManagers: () => api.get('/api/availability/managers/list'),
+  getManagerLocations: (managerId) => api.get(`/api/availability/managers/${managerId}/locations`),
+  getAllPostings: () => api.get('/api/postings/list'),
+  getAllLocations: () => api.get('/api/availability/locations/list'),
 }
 
 // ── Appointments ─────────────────────────────────────────────────────────────

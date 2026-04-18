@@ -160,11 +160,9 @@ const initials = computed(() => {
 })
 
 const resumeUrl = computed(() => {
-  if (candidate.value?.resumeUrl) return candidate.value.resumeUrl
-  // Fallback: generate URL from candidate name and emailId
-  if (candidate.value?.candidateName && candidate.value?.emailId) {
-    const fileName = `${candidate.value.candidateName.replace(/ /g, '_')}_${candidate.value.emailId}_Resume.pdf`
-    return `/root/.n8n-files/resumes/${fileName}`
+  // Use API endpoint to serve the resume
+  if (candidate.value?.emailId) {
+    return `/api/candidates/resume/${candidate.value.emailId}`
   }
   return null
 })

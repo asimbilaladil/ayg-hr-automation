@@ -307,11 +307,9 @@ function scoreBarColor(score) {
 }
 
 function getResumeUrl(candidate) {
-  if (candidate?.resumeUrl) return candidate.resumeUrl
-  // Fallback: generate URL from candidate name and emailId
-  if (candidate?.candidateName && candidate?.emailId) {
-    const fileName = `${candidate.candidateName.replace(/ /g, '_')}_${candidate.emailId}_Resume.pdf`
-    return `/root/.n8n-files/resumes/${fileName}`
+  // Use API endpoint to serve the resume
+  if (candidate?.emailId) {
+    return `/api/candidates/resume/${candidate.emailId}`
   }
   return null
 }

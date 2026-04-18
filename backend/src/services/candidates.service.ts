@@ -250,6 +250,35 @@ export async function updateCandidateStatus(emailId: string, data: any) {
   return flattenCandidate(updated);
 }
 
+export async function getResume(emailId: string, res: any) {
+  const fs = require('fs').promises;
+  const path = require('path');
+
+  // Find the candidate
+  const candidate = await prisma.candidate.findUnique({ where: { emailId } });
+  if (!candidate) {
+    return res.status(404).json({ error: 'Candidate not found' });
+  }
+
+  // Generate resume filename from candidate name and emailId
+  const fileName = `${candidate.name.replace(/ /g, '_')}_${emailId}_Resume.pdf`;
+  const resumePath = path.join('/root/.n8n-files/resumes', fileName);
+
+  try {
+    // Check if file exists
+    await fs.access(resumePath);
+
+    // Send the file
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
+    const fileContent = await fs.readFile(resumePath);
+    res.send(fileContent);
+  } catch (err) {
+    console.error('Resume file not found:', resumePath, err);
+    res.status(404).json({ error: 'Resume file not found' });
+  }
+}
+
 export async function updateAIReview(emailId: string, data: any) {
   const updated = await prisma.candidate.update({
     where: { emailId },

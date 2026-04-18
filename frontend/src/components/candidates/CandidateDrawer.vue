@@ -160,19 +160,24 @@
               </div>
               <div>
                 <label class="label">Posting Name</label>
-                <input v-model="editForm.postingName" class="input" />
+                <select v-model="editForm.postingName" class="input">
+                  <option value="">Select posting…</option>
+                  <option v-for="p in postings" :key="p.id" :value="p.name">{{ p.name }}</option>
+                </select>
               </div>
               <div>
                 <label class="label">Location</label>
-                <input v-model="editForm.location" class="input" />
+                <select v-model="editForm.location" class="input" disabled>
+                  <option v-for="loc in selectedManagerLocations" :key="loc.id" :value="loc.name">{{ loc.name }}</option>
+                </select>
+                <p class="text-xs text-gray-400 mt-1">Location is based on manager assignment</p>
               </div>
               <div>
                 <label class="label">Hiring Manager</label>
-                <input v-model="editForm.hiringManager" class="input" />
-              </div>
-              <div>
-                <label class="label">Recruiter</label>
-                <input v-model="editForm.recruiter" class="input" />
+                <select v-model="editForm.hiringManager" class="input" @change="onManagerChange">
+                  <option value="">Select manager…</option>
+                  <option v-for="m in managers" :key="m.id" :value="m.name">{{ m.name }}</option>
+                </select>
               </div>
               <div>
                 <label class="label">Date Applied</label>
@@ -274,6 +279,13 @@ const tabs = [
 
 const STATUSES = ['pending', 'reviewing', 'reviewed', 'called', 'scheduled', 'rejected', 'hired']
 
+// Load dropdown data when drawer opens
+watch(() => props.modelValue, (isOpen) => {
+  if (isOpen && managers.value.length === 0) {
+    loadDropdownData()
+  }
+})
+
 const editForm = reactive({
   candidateName: '',
   phone: '',
@@ -281,11 +293,15 @@ const editForm = reactive({
   postingName: '',
   location: '',
   hiringManager: '',
-  recruiter: '',
   dateApplied: '',
   status: '',
   resumeUrl: '',
 })
+
+const managers = ref([])
+const postings = ref([])
+const selectedManagerLocations = ref([])
+const loadingDropdowns = ref(false)
 
 watch(() => props.candidate, (c) => {
   if (!c) return
@@ -296,11 +312,14 @@ watch(() => props.candidate, (c) => {
     postingName: c.postingName || '',
     location: c.location || '',
     hiringManager: c.hiringManager || '',
-    recruiter: c.recruiter || '',
     dateApplied: c.dateApplied || '',
     status: c.status || '',
     resumeUrl: c.resumeUrl || '',
   })
+  // Load manager locations based on selected manager
+  if (c.hiringManager) {
+    loadManagerLocations(c.hiringManager)
+  }
   activeTab.value = 'overview'
 }, { immediate: true })
 
@@ -310,11 +329,9 @@ const initials = computed(() => {
 })
 
 const resumeUrl = computed(() => {
-  if (props.candidate?.resumeUrl) return props.candidate.resumeUrl
-  // Fallback: generate URL from candidate name and emailId
-  if (props.candidate?.candidateName && props.candidate?.emailId) {
-    const fileName = `${props.candidate.candidateName.replace(/ /g, '_')}_${props.candidate.emailId}_Resume.pdf`
-    return `/root/.n8n-files/resumes/${fileName}`
+  // Use API endpoint to serve the resume
+  if (props.candidate?.emailId) {
+    return `/api/candidates/resume/${props.candidate.emailId}`
   }
   return null
 })
@@ -322,6 +339,49 @@ const resumeUrl = computed(() => {
 const saving = ref(false)
 const editError = ref('')
 const editSuccess = ref(false)
+
+async function loadDropdownData() {
+  try {
+    loadingDropdowns.value = true
+    const [managersRes, postingsRes] = await Promise.all([
+      candidatesApi.getAllManagers(),
+      candidatesApi.getAllPostings(),
+    ])
+    managers.value = managersRes.data || []
+    postings.value = postingsRes.data || []
+  } catch (err) {
+    console.error('Failed to load dropdown data:', err)
+  } finally {
+    loadingDropdowns.value = false
+  }
+}
+
+async function loadManagerLocations(managerName) {
+  try {
+    // Find the manager ID from the managers list
+    const manager = managers.value.find(m => m.name === managerName)
+    if (!manager) {
+      selectedManagerLocations.value = []
+      return
+    }
+
+    const res = await candidatesApi.getManagerLocations(manager.id)
+    selectedManagerLocations.value = res.data || []
+
+    // If there's only one location and it's not selected, auto-select it
+    if (selectedManagerLocations.value.length === 1 && !editForm.location) {
+      editForm.location = selectedManagerLocations.value[0].name
+    }
+  } catch (err) {
+    console.error('Failed to load manager locations:', err)
+    selectedManagerLocations.value = []
+  }
+}
+
+function onManagerChange() {
+  editForm.location = ''
+  loadManagerLocations(editForm.hiringManager)
+}
 
 async function saveEdit() {
   saving.value = true

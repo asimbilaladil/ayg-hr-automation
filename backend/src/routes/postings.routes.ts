@@ -5,6 +5,9 @@ import * as ctrl from '../controllers/postings.controller';
 
 const router = Router();
 
+// HR can view postings
+router.get('/list', auth, rbac('HR'), ctrl.list);
+
 // Admin-only endpoints for posting management
 router.get('/', auth, rbac('ADMIN'), ctrl.list);
 router.get('/:id', auth, rbac('ADMIN'), ctrl.getById);

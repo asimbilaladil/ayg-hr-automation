@@ -15,6 +15,7 @@ router.patch('/:emailId/status', apiKeyAuth, ctrl.updateStatus);
 
 // Frontend endpoints (JWT)
 router.get('/', auth, rbac('HR'), ctrl.list);
+router.get('/resume/:emailId', auth, rbac('HR'), ctrl.getResume);
 router.get('/:id', auth, rbac('HR'), ctrl.getById);
 router.patch('/:id', auth, rbac('HR'), ctrl.update);
 router.delete('/:id', auth, rbac('ADMIN'), ctrl.remove);

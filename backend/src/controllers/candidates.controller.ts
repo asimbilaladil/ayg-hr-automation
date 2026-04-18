@@ -88,3 +88,10 @@ export async function updateStatus(req: Request, res: Response, next: NextFuncti
     res.json(candidate);
   } catch (err) { next(err); }
 }
+
+export async function getResume(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { emailId } = req.params;
+    await service.getResume(emailId, res);
+  } catch (err) { next(err); }
+}
