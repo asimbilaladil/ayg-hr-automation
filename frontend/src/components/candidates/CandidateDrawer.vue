@@ -124,6 +124,22 @@
               </div>
             </div>
           </div>
+
+          <!-- Resume -->
+          <div v-if="resumeUrl" class="border-t border-gray-200 pt-4">
+            <h4 class="text-sm font-semibold text-gray-700 mb-3">Resume</h4>
+            <a
+              :href="resumeUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 font-medium rounded-lg transition-colors"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              View Resume
+            </a>
+          </div>
         </div>
 
         <!-- Edit Tab -->
@@ -170,7 +186,8 @@
               </div>
               <div class="col-span-2">
                 <label class="label">Resume URL</label>
-                <input v-model="editForm.resumeUrl" class="input" type="url" placeholder="https://…" />
+                <input v-model="editForm.resumeUrl" class="input" type="url" placeholder="https://…" disabled />
+                <p class="text-xs text-gray-400 mt-1">Resume URL is managed automatically</p>
               </div>
             </div>
 
@@ -290,6 +307,16 @@ watch(() => props.candidate, (c) => {
 const initials = computed(() => {
   const name = props.candidate?.candidateName || ''
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+})
+
+const resumeUrl = computed(() => {
+  if (props.candidate?.resumeUrl) return props.candidate.resumeUrl
+  // Fallback: generate URL from candidate name and emailId
+  if (props.candidate?.candidateName && props.candidate?.emailId) {
+    const fileName = `${props.candidate.candidateName.replace(/ /g, '_')}_${props.candidate.emailId}_Resume.pdf`
+    return `/root/.n8n-files/resumes/${fileName}`
+  }
+  return null
 })
 
 const saving = ref(false)

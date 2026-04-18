@@ -86,6 +86,7 @@
               <th class="text-left px-4 py-3 font-semibold text-gray-600 whitespace-nowrap">Status</th>
               <th class="text-left px-4 py-3 font-semibold text-gray-600 whitespace-nowrap">AI Score</th>
               <th class="text-left px-4 py-3 font-semibold text-gray-600 whitespace-nowrap">AI Rec</th>
+              <th class="text-left px-4 py-3 font-semibold text-gray-600 whitespace-nowrap">Resume</th>
               <th class="text-left px-4 py-3 font-semibold text-gray-600 whitespace-nowrap">Date</th>
               <th class="px-4 py-3"></th>
             </tr>
@@ -137,6 +138,22 @@
                 <span v-else class="text-gray-400">—</span>
               </td>
               <td class="px-4 py-3"><StatusBadge v-if="c.aiRecommendation" :status="c.aiRecommendation" /></td>
+              <td class="px-4 py-3">
+                <a
+                  v-if="getResumeUrl(c)"
+                  :href="getResumeUrl(c)"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="inline-flex items-center gap-1 px-3 py-1 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors"
+                  @click.stop
+                >
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  View
+                </a>
+                <span v-else class="text-xs text-gray-300">—</span>
+              </td>
               <td class="px-4 py-3 text-xs text-gray-400 whitespace-nowrap">{{ formatDate(c.createdAt) }}</td>
               <td class="px-4 py-3">
                 <button
@@ -287,6 +304,16 @@ function scoreBarColor(score) {
   if (score >= 70) return 'bg-green-500'
   if (score >= 40) return 'bg-yellow-500'
   return 'bg-red-400'
+}
+
+function getResumeUrl(candidate) {
+  if (candidate?.resumeUrl) return candidate.resumeUrl
+  // Fallback: generate URL from candidate name and emailId
+  if (candidate?.candidateName && candidate?.emailId) {
+    const fileName = `${candidate.candidateName.replace(/ /g, '_')}_${candidate.emailId}_Resume.pdf`
+    return `/root/.n8n-files/resumes/${fileName}`
+  }
+  return null
 }
 
 onMounted(fetchData)

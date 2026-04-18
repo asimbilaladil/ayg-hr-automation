@@ -46,8 +46,20 @@
           <h3 class="font-semibold text-gray-900 mb-4">Contact Information</h3>
           <dl class="space-y-3">
             <div class="flex justify-between">
+              <dt class="text-sm text-gray-500">Email</dt>
+              <dd class="text-sm font-medium text-gray-900 break-all">{{ candidate.emailId }}</dd>
+            </div>
+            <div class="flex justify-between">
               <dt class="text-sm text-gray-500">Phone</dt>
               <dd class="text-sm font-medium text-gray-900">{{ candidate.phone || '—' }}</dd>
+            </div>
+            <div class="flex justify-between">
+              <dt class="text-sm text-gray-500">Posting</dt>
+              <dd class="text-sm font-medium text-gray-900">{{ candidate.postingName || '—' }}</dd>
+            </div>
+            <div class="flex justify-between">
+              <dt class="text-sm text-gray-500">Location</dt>
+              <dd class="text-sm font-medium text-gray-900">{{ candidate.location || '—' }}</dd>
             </div>
             <div class="flex justify-between">
               <dt class="text-sm text-gray-500">Hiring Manager</dt>
@@ -64,10 +76,6 @@
             <div class="flex justify-between">
               <dt class="text-sm text-gray-500">Received At</dt>
               <dd class="text-sm font-medium text-gray-900">{{ formatDate(candidate.receivedAt) }}</dd>
-            </div>
-            <div class="flex justify-between">
-              <dt class="text-sm text-gray-500">Email ID</dt>
-              <dd class="text-sm font-medium text-gray-900 break-all">{{ candidate.emailId }}</dd>
             </div>
           </dl>
         </div>
@@ -90,6 +98,36 @@
           <div v-if="!candidate.aiSummary && !candidate.aiCriteriaMet && !candidate.aiCriteriaMissing" class="text-sm text-gray-400">
             No AI analysis yet
           </div>
+        </div>
+      </div>
+
+      <!-- Resume -->
+      <div class="card p-5">
+        <h3 class="font-semibold text-gray-900 mb-4">Resume</h3>
+        <div v-if="resumeUrl" class="flex items-center justify-between p-4 bg-blue-50 rounded-lg border border-blue-200">
+          <div class="flex items-center gap-3">
+            <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+            </svg>
+            <div>
+              <p class="text-sm font-medium text-gray-900">Resume Available</p>
+              <p class="text-xs text-gray-500">PDF Document</p>
+            </div>
+          </div>
+          <a
+            :href="resumeUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="btn-primary btn-sm"
+          >
+            View Resume
+          </a>
+        </div>
+        <div v-else class="text-center py-8 text-gray-400">
+          <svg class="w-8 h-8 mx-auto mb-2 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          No resume available
         </div>
       </div>
 
@@ -119,6 +157,16 @@ const candidate = ref(null)
 const initials = computed(() => {
   const name = candidate.value?.candidateName || ''
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+})
+
+const resumeUrl = computed(() => {
+  if (candidate.value?.resumeUrl) return candidate.value.resumeUrl
+  // Fallback: generate URL from candidate name and emailId
+  if (candidate.value?.candidateName && candidate.value?.emailId) {
+    const fileName = `${candidate.value.candidateName.replace(/ /g, '_')}_${candidate.value.emailId}_Resume.pdf`
+    return `/root/.n8n-files/resumes/${fileName}`
+  }
+  return null
 })
 
 function formatDate(d) {
