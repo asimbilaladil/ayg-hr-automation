@@ -280,17 +280,7 @@ const tabs = [
 
 const STATUSES = ['pending', 'reviewing', 'reviewed', 'called', 'scheduled', 'rejected', 'hired']
 
-// Load dropdown data when drawer opens
-watch(() => props.modelValue, (isOpen) => {
-  console.log('Drawer opened:', isOpen)
-  if (isOpen && managers.value.length === 0) {
-    console.log('Loading dropdown data for first time')
-    loadDropdownData()
-  } else if (isOpen) {
-    console.log('Managers already loaded:', managers.value.length)
-  }
-})
-
+// Declare refs FIRST before using them in watchers
 const editForm = reactive({
   candidateName: '',
   phone: '',
@@ -307,6 +297,17 @@ const managers = ref([])
 const postings = ref([])
 const selectedManagerLocations = ref([])
 const loadingDropdowns = ref(false)
+
+// Load dropdown data when drawer opens
+watch(() => props.modelValue, (isOpen) => {
+  console.log('Drawer opened:', isOpen)
+  if (isOpen && managers.value.length === 0) {
+    console.log('Loading dropdown data for first time')
+    loadDropdownData()
+  } else if (isOpen) {
+    console.log('Managers already loaded:', managers.value.length)
+  }
+})
 
 watch(() => props.candidate, (c) => {
   if (!c) return
