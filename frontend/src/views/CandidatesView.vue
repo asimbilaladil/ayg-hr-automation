@@ -124,7 +124,7 @@
               <td class="px-4 py-3 text-gray-700 max-w-[180px] truncate">{{ c.postingName }}</td>
               <td class="px-4 py-3 text-gray-600 whitespace-nowrap">{{ c.location }}</td>
               <td class="px-4 py-3 text-gray-600 text-sm">{{ c.hiringManager || '—' }}</td>
-              <td class="px-4 py-3"><StatusBadge :status="c.status" /></td>
+              <td class="px-4 py-3 first-letter:uppercase"><StatusBadge :status="c.status" /></td>
               <td class="px-4 py-3">
                 <div v-if="c.aiScore != null" class="flex items-center gap-2">
                   <div class="w-16 h-1.5 rounded-full bg-gray-100 overflow-hidden">
