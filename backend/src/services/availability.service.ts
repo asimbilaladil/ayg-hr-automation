@@ -362,15 +362,15 @@ export async function getSuggestedSlots(input: {
   if (daysWithSlots === 1) {
     // Only one day has availability — return first 3 slots
     return {
-      slots:        slotsByDay[0].slots.slice(0, 3),
+      slots:         slotsByDay[0].slots.slice(0, 3),
       daysWithSlots: 1,
     };
   }
 
-  // Multiple days — return all slots for every available day
-  const allSlots = slotsByDay.flatMap((d) => d.slots);
+  // Multiple days — return 1 slot (the first available) per day
+  const onePerDay = slotsByDay.map((d) => d.slots[0]);
   return {
-    slots: allSlots,
+    slots:         onePerDay,
     daysWithSlots,
   };
 }
