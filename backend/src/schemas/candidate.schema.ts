@@ -46,6 +46,7 @@ export const CandidateQuerySchema = z.object({
   status: z.string().optional(),
   location: z.string().optional(),
   postingName: z.string().optional(),
+  hiringManager: z.string().optional(),
   aiRecommendation: z.enum(['HIRE', 'MAYBE', 'REJECT']).optional(),
   search: z.string().optional(),
   page: z.coerce.number().min(1).default(1),

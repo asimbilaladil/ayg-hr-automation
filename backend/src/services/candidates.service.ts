@@ -75,10 +75,16 @@ function flattenCandidate(candidate: any) {
   };
 }
 
-export async function listCandidates(query: CandidateQuery) {
-  const { location, postingName, search, page, limit, sortBy, sortOrder } = query;
+export async function listCandidates(query: CandidateQuery & { hiringManager?: string }) {
+  const { location, postingName, hiringManager, search, page, limit, sortBy, sortOrder } = query;
+  const aiRecommendation = (query as any).aiRecommendation;
+  const status = (query as any).status;
 
   const where: Record<string, any> = {};
+
+  if (status) where.status = status;
+
+  if (aiRecommendation) where.aiRecommendation = aiRecommendation;
 
   if (location) {
     const locationRecord = await prisma.location.findFirst({
@@ -90,6 +96,7 @@ export async function listCandidates(query: CandidateQuery) {
       },
     });
     if (locationRecord) where.locationId = locationRecord.id;
+    else where.locationId = null; // no match → return empty
   }
 
   if (postingName) {
@@ -102,9 +109,29 @@ export async function listCandidates(query: CandidateQuery) {
       },
     });
     if (postingRecord) where.postingId = postingRecord.id;
+    else where.postingId = null;
   }
 
-  if (search) where.name = { contains: search, mode: 'insensitive' };
+  if (hiringManager) {
+    where.hiringManager_rel = {
+      name: { contains: hiringManager, mode: 'insensitive' },
+    };
+  }
+
+  if (search) {
+    where.OR = [
+      { name:  { contains: search, mode: 'insensitive' } },
+      { phone: { contains: search, mode: 'insensitive' } },
+    ];
+  }
+
+  // Map frontend sortBy keys to actual Prisma field names
+  const sortFieldMap: Record<string, string> = {
+    candidateName: 'name',
+    aiScore:       'aiScore',
+    createdAt:     'createdAt',
+  };
+  const orderField = sortFieldMap[sortBy] || 'createdAt';
 
   const [data, total] = await Promise.all([
     prisma.candidate.findMany({
@@ -116,7 +143,7 @@ export async function listCandidates(query: CandidateQuery) {
         recruiter_rel: true,
         appointment: true,
       },
-      orderBy: { [sortBy]: sortOrder },
+      orderBy: { [orderField]: sortOrder },
       skip: (page - 1) * limit,
       take: limit,
     }),
@@ -319,7 +346,15 @@ export async function updateAIReview(emailId: string, data: any) {
   const updated = await prisma.candidate.update({
     where: { emailId },
     data: {
-      status: data.status || 'reviewed'
+      status:            data.status            || 'reviewed',
+      ...(data.aiScore           != null && { aiScore:           data.aiScore }),
+      ...(data.aiRecommendation  != null && { aiRecommendation:  data.aiRecommendation }),
+      ...(data.aiCriteriaMet     != null && { aiCriteriaMet:     data.aiCriteriaMet }),
+      ...(data.aiCriteriaMissing != null && { aiCriteriaMissing: data.aiCriteriaMissing }),
+      ...(data.aiSummary         != null && { aiSummary:         data.aiSummary }),
+      // n8n sometimes sends candidateName / phone updates alongside AI review
+      ...(data.candidateName     != null && { name:  data.candidateName }),
+      ...(data.phone             != null && { phone: data.phone }),
     },
     include: {
       posting_rel: true,
@@ -336,7 +371,8 @@ export async function updateCallResult(emailId: string, data: any) {
   const updated = await prisma.candidate.update({
     where: { emailId },
     data: {
-      status: data.status || 'called'
+      status:     data.status     || 'called',
+      ...(data.transcript != null && { transcript: data.transcript }),
     },
     include: {
       posting_rel: true,

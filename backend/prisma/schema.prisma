@@ -61,7 +61,17 @@ model Candidate {
   dateApplied   String?
   status        String   @default("pending")
   emailId       String   @unique
-  resumeUrl     String?  
+  resumeUrl     String?
+
+  // AI review fields (populated by n8n after Claude analysis)
+  aiScore           Float?
+  aiRecommendation  String?
+  aiCriteriaMet     String?
+  aiCriteriaMissing String?
+  aiSummary         String?
+
+  // Call transcript (populated by n8n after Vapi call)
+  transcript        String?
 
   posting_rel     Posting  @relation(fields: [postingId], references: [id])
   postingId       String
