@@ -260,8 +260,120 @@ export async function getAvailabilitySlots(query: SlotsQuery & { limit?: number 
   };
 }
 
-// ✅ alias for controller
-export const getSuggestedSlots = getAvailabilitySlots;
+/**
+ * getSuggestedSlots — returns availability suggestions across the next 7 days.
+ *
+ * Rules:
+ *   • Controller passes locationId + an array of { date, dayOfWeek } for 7 days.
+ *   • We collect every day that has at least one free slot.
+ *   • If only 1 day has slots  → return the first 3 slots from that day.
+ *   • If 2+ days have slots   → return ALL slots for EACH of those days.
+ */
+export async function getSuggestedSlots(input: {
+  locationId: string;
+  days: Array<{ date: string; dayOfWeek: string }>;
+}) {
+  const { locationId, days } = input;
+
+  // Resolve location once (handles locationId, managerId, or name)
+  const locationRecord = await resolveLocation(locationId);
+  if (!locationRecord) {
+    console.warn(`getSuggestedSlots: cannot resolve location from "${locationId}"`);
+    return { slots: [], daysWithSlots: 0 };
+  }
+
+  // Collect slots grouped by day
+  const slotsByDay: Array<{ date: string; dayOfWeek: string; slots: any[] }> = [];
+
+  for (const { date, dayOfWeek } of days) {
+    // Fetch availability windows for this location + day
+    const windows = await prisma.managerAvailability.findMany({
+      where: {
+        locationId: locationRecord.id,
+        dayOfWeek: { equals: dayOfWeek, mode: 'insensitive' },
+        active: true,
+      },
+      include: { location_rel: true, manager_rel: true },
+    });
+
+    if (!windows.length) continue;
+
+    // Fetch booked appointments for this location on this date
+    const dateStart = new Date(`${date}T00:00:00`);
+    const dateEnd   = new Date(`${date}T23:59:59`);
+
+    const booked = await prisma.appointment.findMany({
+      where: {
+        locationId: locationRecord.id,
+        interviewDate: { gte: dateStart, lte: dateEnd },
+      },
+      include: { manager_rel: true },
+    });
+
+    const bookedSet = new Set(
+      booked.map((a: any) => {
+        const t = normalize12HourTo24Hour(a.startTime);
+        return a.manager_rel?.email ? `${a.manager_rel.email}__${t}` : `ANY__${t}`;
+      })
+    );
+
+    // Generate free slots from all windows for this day
+    const daySlots: any[] = [];
+
+    for (const window of windows) {
+      const startMins = timeToMinutes(window.startTime);
+      const endMins   = timeToMinutes(window.endTime);
+      const duration  = parseDuration(window.slotDuration || '15 Min');
+
+      for (let t = startMins; t + duration <= endMins; t += duration) {
+        const slotStart = minutesToTime(t);
+        const slotEnd   = minutesToTime(t + duration);
+
+        const managerKey = `${window.manager_rel!.email}__${slotStart}`;
+        const anyKey     = `ANY__${slotStart}`;
+
+        if (!bookedSet.has(managerKey) && !bookedSet.has(anyKey)) {
+          daySlots.push({
+            date,
+            day:          dayOfWeek,
+            startTime:    slotStart,
+            endTime:      slotEnd,
+            displayTime:  formatTo12Hour(slotStart),
+            managerName:  window.manager_rel!.name,
+            managerEmail: window.manager_rel!.email,
+            location:     locationRecord.name,
+            locationId:   locationRecord.id,
+          });
+        }
+      }
+    }
+
+    if (daySlots.length > 0) {
+      slotsByDay.push({ date, dayOfWeek, slots: daySlots });
+    }
+  }
+
+  const daysWithSlots = slotsByDay.length;
+
+  if (daysWithSlots === 0) {
+    return { slots: [], daysWithSlots: 0 };
+  }
+
+  if (daysWithSlots === 1) {
+    // Only one day has availability — return first 3 slots
+    return {
+      slots:        slotsByDay[0].slots.slice(0, 3),
+      daysWithSlots: 1,
+    };
+  }
+
+  // Multiple days — return all slots for every available day
+  const allSlots = slotsByDay.flatMap((d) => d.slots);
+  return {
+    slots: allSlots,
+    daysWithSlots,
+  };
+}
 
 // ✅ Slot validation — accepts locationId, managerId, or location name
 export async function validateSlot(input: any) {

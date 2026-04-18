@@ -60,34 +60,27 @@ export async function remove(req: Request, res: Response, next: NextFunction) {
 
 export async function getSuggestions(req: Request, res: Response, next: NextFunction) {
   try {
-    // Accept locationId (preferred) or location name (fallback for old callers)
-    // Also handles managerId passed as locationId — resolveLocation in service handles it
-    const locationId   = req.query.locationId ? String(req.query.locationId) : undefined;
-    const locationName = req.query.location   ? String(req.query.location)   : undefined;
+    const locationId = req.query.locationId ? String(req.query.locationId) : undefined;
 
-    if (!locationId && !locationName) {
-      return res.status(400).json({ error: 'locationId (or location) is required' });
+    if (!locationId) {
+      return res.status(400).json({ error: 'locationId is required' });
     }
 
-    const idOrName = locationId || locationName!;
+    // Build the 7-day window starting from today — controller owns date/time logic
+    const today = new Date();
+    const days: Array<{ date: string; dayOfWeek: string }> = [];
 
-    // Look ahead up to 7 days to find the next day that has availability slots
     for (let offset = 0; offset < 7; offset++) {
-      const candidate = new Date();
-      candidate.setDate(candidate.getDate() + offset);
-
-      const date      = candidate.toISOString().slice(0, 10);
-      const dayOfWeek = candidate.toLocaleString('en-US', { weekday: 'long' });
-
-      const result = await service.getSuggestedSlots({ locationId: idOrName, date, dayOfWeek });
-
-      if (result.slots.length > 0) {
-        return res.json(result);
-      }
+      const d = new Date(today);
+      d.setDate(today.getDate() + offset);
+      days.push({
+        date:      d.toISOString().slice(0, 10),
+        dayOfWeek: d.toLocaleString('en-US', { weekday: 'long' }),
+      });
     }
 
-    // No slots found in the next 7 days
-    res.json({ slots: [] });
+    const result = await service.getSuggestedSlots({ locationId, days });
+    res.json(result);
   } catch (err) {
     next(err);
   }
