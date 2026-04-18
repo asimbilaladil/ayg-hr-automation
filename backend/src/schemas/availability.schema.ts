@@ -23,9 +23,9 @@ export const UpdateAvailabilitySchema = z.object({
 });
 
 export const SlotsQuerySchema = z.object({
-  location: z.string().min(1),
-  dayOfWeek: z.string().min(1),
-  date: z.string().min(1), // YYYY-MM-DD
+  locationId: z.string().min(1), // Location.id (cuid) — replaces old free-text location name
+  dayOfWeek:  z.string().min(1),
+  date:       z.string().min(1), // YYYY-MM-DD
 });
 
 export const AvailabilityQuerySchema = z.object({

@@ -150,41 +150,46 @@ export async function getAvailabilityById(id: string) {
 }
 
 export async function getAvailabilitySlots(query: SlotsQuery & { limit?: number }) {
-  const { location, dayOfWeek, date, limit } = query;
+  const { locationId, dayOfWeek, date, limit } = query;
 
-  const locationRecord = await prisma.location.findFirst({
-    where: { name: { contains: location, mode: 'insensitive' } },
+  // ── Verify the location exists so we can return its name in slot objects ──
+  const locationRecord = await prisma.location.findUnique({
+    where: { id: locationId },
   });
 
-  if (!locationRecord) return { slots: [] };
+  if (!locationRecord) {
+    console.warn(`getAvailabilitySlots: locationId "${locationId}" not found`);
+    return { slots: [] };
+  }
 
+  // ── Fetch availability windows for this location + day ────────────────────
   const windows = await prisma.managerAvailability.findMany({
     where: {
-      locationId: locationRecord.id,
+      locationId,                                            // direct FK — no name lookup needed
       dayOfWeek: { equals: dayOfWeek, mode: 'insensitive' },
       active: true,
     },
     include: {
       location_rel: true,
-      manager_rel: true,
+      manager_rel:  true,
     },
   });
 
   if (!windows.length) return { slots: [] };
 
+  // ── Fetch booked appointments for this location on the given date ─────────
   const dateStart = new Date(`${date}T00:00:00`);
-  const dateEnd = new Date(`${date}T23:59:59`);
+  const dateEnd   = new Date(`${date}T23:59:59`);
 
   const booked = await prisma.appointment.findMany({
     where: {
-      locationId: locationRecord.id,
+      locationId,                                            // direct FK
       interviewDate: { gte: dateStart, lte: dateEnd },
     },
-    include: {
-      manager_rel: true,
-    },
+    include: { manager_rel: true },
   });
 
+  // Key format: "<managerEmail>__<HH:MM>" or "ANY__<HH:MM>" for unassigned
   const bookedSlots = new Set(
     booked.map((a: any) => {
       const normalizedTime = normalize12HourTo24Hour(a.startTime);
@@ -194,31 +199,32 @@ export async function getAvailabilitySlots(query: SlotsQuery & { limit?: number 
     })
   );
 
+  // ── Generate time slots from each availability window ────────────────────
   const slots: any[] = [];
 
   for (const window of windows) {
     const startMinutes = timeToMinutes(window.startTime);
-    const endMinutes = timeToMinutes(window.endTime);
-
-    const duration = parseDuration(window.slotDuration || '15 Min');
+    const endMinutes   = timeToMinutes(window.endTime);
+    const duration     = parseDuration(window.slotDuration || '15 Min');
 
     for (let t = startMinutes; t + duration <= endMinutes; t += duration) {
       const slotStart = minutesToTime(t);
-      const slotEnd = minutesToTime(t + duration);
+      const slotEnd   = minutesToTime(t + duration);
 
-      const managerKey = `${window.manager_rel!.email}__${slotStart}`;
+      const managerKey    = `${window.manager_rel!.email}__${slotStart}`;
       const anyManagerKey = `ANY__${slotStart}`;
 
       if (!bookedSlots.has(managerKey) && !bookedSlots.has(anyManagerKey)) {
         slots.push({
           date,
-          day: dayOfWeek,
-          startTime: slotStart,
-          endTime: slotEnd,
-          displayTime: formatTo12Hour(slotStart),
-          managerName: window.manager_rel!.name,
+          day:          dayOfWeek,
+          startTime:    slotStart,
+          endTime:      slotEnd,
+          displayTime:  formatTo12Hour(slotStart),
+          managerName:  window.manager_rel!.name,
           managerEmail: window.manager_rel!.email,
-          location: window.location_rel!.name,
+          location:     locationRecord.name,            // use name from DB record
+          locationId,                                   // also expose the id for convenience
         });
       }
     }
@@ -232,19 +238,26 @@ export async function getAvailabilitySlots(query: SlotsQuery & { limit?: number 
 // ✅ alias for controller
 export const getSuggestedSlots = getAvailabilitySlots;
 
-// ✅ simple validation
+// ✅ Slot validation — accepts locationId (preferred) or location name (fallback)
 export async function validateSlot(input: any) {
-  const { location, date, startTime } = input;
+  const { locationId, location, date, startTime } = input;
 
-  const locationRecord = await prisma.location.findFirst({
-    where: { name: { contains: location, mode: 'insensitive' } },
-  });
+  let resolvedLocationId = locationId;
 
-  if (!locationRecord) return { valid: false };
+  // Fallback: resolve by name if only location name was provided
+  if (!resolvedLocationId && location) {
+    const locationRecord = await prisma.location.findFirst({
+      where: { name: { contains: location, mode: 'insensitive' } },
+    });
+    if (!locationRecord) return { valid: false };
+    resolvedLocationId = locationRecord.id;
+  }
+
+  if (!resolvedLocationId) return { valid: false };
 
   const existing = await prisma.appointment.findFirst({
     where: {
-      locationId: locationRecord.id,
+      locationId: resolvedLocationId,
       interviewDate: new Date(date),
       startTime,
     },

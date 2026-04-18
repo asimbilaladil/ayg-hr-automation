@@ -60,18 +60,31 @@ export async function remove(req: Request, res: Response, next: NextFunction) {
 
 export async function getSuggestions(req: Request, res: Response, next: NextFunction) {
   try {
-    const location = String(req.query.location || '');
+    // Accept locationId (preferred) or location name (fallback for old callers)
+    const locationId   = req.query.locationId ? String(req.query.locationId) : undefined;
+    const locationName = req.query.location   ? String(req.query.location)   : undefined;
 
-    if (!location) {
-      return res.status(400).json({ error: 'location is required' });
+    if (!locationId && !locationName) {
+      return res.status(400).json({ error: 'locationId (or location) is required' });
+    }
+
+    // Resolve name → id if only name was provided
+    let resolvedLocationId = locationId;
+    if (!resolvedLocationId && locationName) {
+      const { prisma } = await import('../lib/prisma');
+      const rec = await prisma.location.findFirst({
+        where: { name: { contains: locationName, mode: 'insensitive' } },
+      });
+      if (!rec) return res.json({ slots: [] });
+      resolvedLocationId = rec.id;
     }
 
     const today = new Date();
 
     const result = await service.getSuggestedSlots({
-      location,
-      date: today.toISOString().slice(0, 10),
-      dayOfWeek: today.toLocaleString('en-US', { weekday: 'long' }),
+      locationId: resolvedLocationId!,
+      date:       today.toISOString().slice(0, 10),
+      dayOfWeek:  today.toLocaleString('en-US', { weekday: 'long' }),
     });
 
     res.json(result);
@@ -82,18 +95,19 @@ export async function getSuggestions(req: Request, res: Response, next: NextFunc
 
 export async function validateSlot(req: Request, res: Response, next: NextFunction) {
   try {
-    const { location, date, time } = req.query;
+    const { locationId, location, date, time } = req.query;
 
-    if (!location || !date || !time) {
+    if ((!locationId && !location) || !date || !time) {
       return res.status(400).json({
-        error: 'location, date and time are required',
+        error: 'locationId (or location), date and time are required',
       });
     }
 
     const result = await service.validateSlot({
-      location: String(location),
-      date: String(date),
-      startTime: String(time),
+      locationId: locationId ? String(locationId) : undefined,
+      location:   location   ? String(location)   : undefined,
+      date:       String(date),
+      startTime:  String(time),
     });
 
     res.json(result);
