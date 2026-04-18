@@ -252,6 +252,7 @@ export async function updateCandidateStatus(emailId: string, data: any) {
 
 export async function getResume(emailId: string, res: any) {
   const fs = require('fs').promises;
+  const fssync = require('fs');
   const path = require('path');
 
   // Find the candidate
@@ -260,23 +261,58 @@ export async function getResume(emailId: string, res: any) {
     return res.status(404).json({ error: 'Candidate not found' });
   }
 
-  // Generate resume filename from candidate name and emailId
-  const fileName = `${candidate.name.replace(/ /g, '_')}_${emailId}_Resume.pdf`;
-  const resumePath = path.join('/root/.n8n-files/resumes', fileName);
+  const RESUMES_DIR = '/root/.n8n-files/resumes';
 
-  try {
-    // Check if file exists
-    await fs.access(resumePath);
-
-    // Send the file
+  async function sendFile(filePath: string) {
+    const fileContent = await fs.readFile(filePath);
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
-    const fileContent = await fs.readFile(resumePath);
+    res.setHeader('Content-Disposition', `inline; filename="${path.basename(filePath)}"`);
     res.send(fileContent);
-  } catch (err) {
-    console.error('Resume file not found:', resumePath, err);
-    res.status(404).json({ error: 'Resume file not found' });
   }
+
+  // Strategy 1: use stored resumeUrl field from the database
+  if (candidate.resumeUrl) {
+    const storedUrl = candidate.resumeUrl.trim();
+    // Local absolute path stored directly
+    if (storedUrl.startsWith('/')) {
+      try {
+        await fs.access(storedUrl);
+        return sendFile(storedUrl);
+      } catch { /* fall through */ }
+    }
+    // Path relative to RESUMES_DIR
+    const relPath = path.join(RESUMES_DIR, path.basename(storedUrl));
+    try {
+      await fs.access(relPath);
+      return sendFile(relPath);
+    } catch { /* fall through */ }
+    // External URL — redirect the browser directly
+    if (storedUrl.startsWith('http')) {
+      return res.redirect(storedUrl);
+    }
+  }
+
+  // Strategy 2: constructed filename (original logic)
+  const constructedName = `${candidate.name.replace(/ /g, '_')}_${emailId}_Resume.pdf`;
+  const constructedPath = path.join(RESUMES_DIR, constructedName);
+  try {
+    await fs.access(constructedPath);
+    return sendFile(constructedPath);
+  } catch { /* fall through */ }
+
+  // Strategy 3: scan directory for any file that contains the emailId
+  try {
+    const files = await fs.readdir(RESUMES_DIR);
+    const match = files.find((f: string) => f.includes(emailId));
+    if (match) {
+      return sendFile(path.join(RESUMES_DIR, match));
+    }
+  } catch (err) {
+    console.error('Could not scan resumes directory:', err);
+  }
+
+  console.error(`Resume not found for emailId=${emailId}. resumeUrl=${candidate.resumeUrl}`);
+  res.status(404).json({ error: 'Resume file not found' });
 }
 
 export async function updateAIReview(emailId: string, data: any) {
