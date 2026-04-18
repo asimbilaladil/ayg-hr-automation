@@ -309,8 +309,9 @@ watch(() => props.modelValue, (isOpen) => {
   }
 })
 
-watch(() => props.candidate, (c) => {
+watch(() => props.candidate, async (c) => {
   if (!c) return
+
   // Format date for date input (YYYY-MM-DD)
   let formattedDate = ''
   if (c.dateApplied) {
@@ -318,20 +319,41 @@ watch(() => props.candidate, (c) => {
     formattedDate = date.toISOString().split('T')[0]
   }
 
+  // Wait for dropdowns to load if not already loaded
+  if (managers.value.length === 0) {
+    console.log('Waiting for dropdown data to load...')
+    await loadDropdownData()
+  }
+
+  // Find the matching manager by name and set to their name for display
+  let selectedManager = ''
+  if (c.hiringManager && managers.value.length > 0) {
+    const managerMatch = managers.value.find(m => m.name === c.hiringManager)
+    selectedManager = managerMatch ? managerMatch.name : c.hiringManager
+  }
+
+  // Find the matching posting by name and set to their name for display
+  let selectedPosting = ''
+  if (c.postingName && postings.value.length > 0) {
+    const postingMatch = postings.value.find(p => p.name === c.postingName)
+    selectedPosting = postingMatch ? postingMatch.name : c.postingName
+  }
+
   Object.assign(editForm, {
     candidateName: c.candidateName || '',
     phone: c.phone || '',
     emailId: c.emailId || '',
-    postingName: c.postingName || '',
+    postingName: selectedPosting,
     location: c.location || '',
-    hiringManager: c.hiringManager || '',
+    hiringManager: selectedManager,
     dateApplied: formattedDate,
     status: c.status || '',
     resumeUrl: c.resumeUrl || '',
   })
+
   // Load manager locations based on selected manager
-  if (c.hiringManager) {
-    loadManagerLocations(c.hiringManager)
+  if (selectedManager) {
+    loadManagerLocations(selectedManager)
   }
   activeTab.value = 'overview'
 }, { immediate: true })

@@ -32,7 +32,7 @@ export const AppointmentQuerySchema = z.object({
   date: z.string().optional(),
   managerEmail: z.string().optional(),
   page: z.coerce.number().min(1).default(1),
-  limit: z.coerce.number().min(1).max(200).default(20),
+  limit: z.coerce.number().min(1).max(10000).default(20),
 });
 
 export type CreateAppointmentInput = z.infer<typeof CreateAppointmentSchema>;
