@@ -305,6 +305,13 @@ const loadingDropdowns = ref(false)
 
 watch(() => props.candidate, (c) => {
   if (!c) return
+  // Format date for date input (YYYY-MM-DD)
+  let formattedDate = ''
+  if (c.dateApplied) {
+    const date = new Date(c.dateApplied)
+    formattedDate = date.toISOString().split('T')[0]
+  }
+
   Object.assign(editForm, {
     candidateName: c.candidateName || '',
     phone: c.phone || '',
@@ -312,7 +319,7 @@ watch(() => props.candidate, (c) => {
     postingName: c.postingName || '',
     location: c.location || '',
     hiringManager: c.hiringManager || '',
-    dateApplied: c.dateApplied || '',
+    dateApplied: formattedDate,
     status: c.status || '',
     resumeUrl: c.resumeUrl || '',
   })
@@ -347,10 +354,14 @@ async function loadDropdownData() {
       candidatesApi.getAllManagers(),
       candidatesApi.getAllPostings(),
     ])
-    managers.value = managersRes.data || []
-    postings.value = postingsRes.data || []
+    // Managers endpoint returns array directly
+    managers.value = Array.isArray(managersRes.data) ? managersRes.data : managersRes.data?.data || []
+    // Postings endpoint returns { data: ... }
+    postings.value = postingsRes.data?.data || postingsRes.data || []
   } catch (err) {
     console.error('Failed to load dropdown data:', err)
+    managers.value = []
+    postings.value = []
   } finally {
     loadingDropdowns.value = false
   }
