@@ -126,19 +126,23 @@
           </div>
 
           <!-- Resume -->
-          <div v-if="resumeUrl" class="border-t border-gray-200 pt-4">
+          <div v-if="hasResume" class="border-t border-gray-200 pt-4">
             <h4 class="text-sm font-semibold text-gray-700 mb-3">Resume</h4>
-            <a
-              :href="resumeUrl"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 font-medium rounded-lg transition-colors"
+            <button
+              class="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 font-medium rounded-lg transition-colors disabled:opacity-50"
+              :disabled="resumeLoading"
+              @click="viewResume"
             >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg v-if="resumeLoading" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+              <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
-              View Resume
-            </a>
+              {{ resumeLoading ? 'Loading…' : 'View Resume' }}
+            </button>
+            <p v-if="resumeError" class="mt-2 text-xs text-red-500">{{ resumeError }}</p>
           </div>
         </div>
 
@@ -261,6 +265,7 @@
 <script setup>
 import { ref, reactive, watch, computed } from 'vue'
 import { candidatesApi } from '@/api'
+import api from '@/api'
 import StatusBadge from '@/components/shared/StatusBadge.vue'
 import ConfirmDialog from '@/components/shared/ConfirmDialog.vue'
 
@@ -363,13 +368,30 @@ const initials = computed(() => {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
 })
 
-const resumeUrl = computed(() => {
-  // Use API endpoint to serve the resume
-  if (props.candidate?.emailId) {
-    return `/api/candidates/resume/${props.candidate.emailId}`
+const hasResume = computed(() => !!props.candidate?.emailId)
+const resumeLoading = ref(false)
+const resumeError = ref('')
+
+async function viewResume() {
+  if (!props.candidate?.emailId) return
+  resumeLoading.value = true
+  resumeError.value = ''
+  try {
+    const res = await api.get(`/api/candidates/resume/${props.candidate.emailId}`, {
+      responseType: 'blob',
+    })
+    const blob = new Blob([res.data], { type: 'application/pdf' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank')
+    // Revoke after a short delay to free memory
+    setTimeout(() => URL.revokeObjectURL(url), 30000)
+  } catch (err) {
+    resumeError.value = 'Resume not found or could not be loaded.'
+    console.error('Failed to load resume:', err)
+  } finally {
+    resumeLoading.value = false
   }
-  return null
-})
+}
 
 const saving = ref(false)
 const editError = ref('')
@@ -379,23 +401,28 @@ async function loadDropdownData() {
   try {
     loadingDropdowns.value = true
     console.log('Loading dropdown data...')
-    const [managersRes, postingsRes] = await Promise.all([
+    const [managersResult, postingsResult] = await Promise.allSettled([
       candidatesApi.getAllManagers(),
       candidatesApi.getAllPostings(),
     ])
-    console.log('Managers response:', managersRes)
-    console.log('Postings response:', postingsRes)
-    // Managers endpoint returns array directly
-    managers.value = Array.isArray(managersRes.data) ? managersRes.data : managersRes.data?.data || []
-    // Postings endpoint returns { data: ... }
-    postings.value = postingsRes.data?.data || postingsRes.data || []
-    console.log('Loaded managers:', managers.value)
-    console.log('Loaded postings:', postings.value)
-  } catch (err) {
-    console.error('Failed to load dropdown data:', err.message)
-    console.error('Full error:', err)
-    managers.value = []
-    postings.value = []
+
+    if (managersResult.status === 'fulfilled') {
+      const managersRes = managersResult.value
+      managers.value = Array.isArray(managersRes.data) ? managersRes.data : managersRes.data?.data || []
+      console.log('Loaded managers:', managers.value)
+    } else {
+      console.error('Failed to load managers:', managersResult.reason?.message)
+      managers.value = []
+    }
+
+    if (postingsResult.status === 'fulfilled') {
+      const postingsRes = postingsResult.value
+      postings.value = postingsRes.data?.data || postingsRes.data || []
+      console.log('Loaded postings:', postings.value)
+    } else {
+      console.error('Failed to load postings:', postingsResult.reason?.message)
+      postings.value = []
+    }
   } finally {
     loadingDropdowns.value = false
   }

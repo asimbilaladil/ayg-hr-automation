@@ -139,19 +139,21 @@
               </td>
               <td class="px-4 py-3"><StatusBadge v-if="c.aiRecommendation" :status="c.aiRecommendation" /></td>
               <td class="px-4 py-3">
-                <a
-                  v-if="getResumeUrl(c)"
-                  :href="getResumeUrl(c)"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="inline-flex items-center gap-1 px-3 py-1 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors"
-                  @click.stop
+                <button
+                  v-if="c.emailId"
+                  class="inline-flex items-center gap-1 px-3 py-1 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors disabled:opacity-50"
+                  :disabled="resumeLoadingId === c.id"
+                  @click="viewResume(c, $event)"
                 >
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg v-if="resumeLoadingId === c.id" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                  </svg>
+                  <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
-                  View
-                </a>
+                  {{ resumeLoadingId === c.id ? '…' : 'View' }}
+                </button>
                 <span v-else class="text-xs text-gray-300">—</span>
               </td>
               <td class="px-4 py-3 text-xs text-gray-400 whitespace-nowrap">{{ formatDate(c.createdAt) }}</td>
@@ -205,6 +207,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { candidatesApi } from '@/api'
+import api from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import StatusBadge from '@/components/shared/StatusBadge.vue'
 import CandidateDrawer from '@/components/candidates/CandidateDrawer.vue'
@@ -306,12 +309,26 @@ function scoreBarColor(score) {
   return 'bg-red-400'
 }
 
-function getResumeUrl(candidate) {
-  // Use API endpoint to serve the resume
-  if (candidate?.emailId) {
-    return `/api/candidates/resume/${candidate.emailId}`
+const resumeLoadingId = ref(null)
+
+async function viewResume(candidate, event) {
+  event.stopPropagation()
+  if (!candidate?.emailId) return
+  resumeLoadingId.value = candidate.id
+  try {
+    const res = await api.get(`/api/candidates/resume/${candidate.emailId}`, {
+      responseType: 'blob',
+    })
+    const blob = new Blob([res.data], { type: 'application/pdf' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank')
+    setTimeout(() => URL.revokeObjectURL(url), 30000)
+  } catch (err) {
+    console.error('Failed to load resume:', err)
+    alert('Resume not found or could not be loaded.')
+  } finally {
+    resumeLoadingId.value = null
   }
-  return null
 }
 
 onMounted(fetchData)
