@@ -6,6 +6,14 @@ import {
 } from '../schemas/candidate.schema';
 import { findOrCreatePosting } from './postings.service';
 
+/** Title-cases a name: "john DOE" → "John Doe" */
+function toTitleCase(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 async function findOrCreateLocation(locationName: string): Promise<string> {
   const trimmedName = locationName.trim();
 
@@ -195,7 +203,7 @@ export async function createCandidate(data: CreateCandidateInput) {
 
   const candidate = await prisma.candidate.create({
     data: {
-      name: data.candidateName,
+      name: toTitleCase(data.candidateName),
       phone: data.phone,
       dateApplied: data.dateApplied,
       status: data.status,
@@ -222,7 +230,7 @@ export async function updateCandidate(id: string, data: UpdateCandidateInput) {
   if (!candidate) throw new Error('NOT_FOUND');
 
   const updateData: any = {
-    ...(data.candidateName && { name: data.candidateName }),
+    ...(data.candidateName && { name: toTitleCase(data.candidateName) }),
     ...(data.phone !== undefined && { phone: data.phone }),
     ...(data.dateApplied !== undefined && { dateApplied: data.dateApplied }),
     ...(data.status && { status: data.status }),
@@ -353,7 +361,7 @@ export async function updateAIReview(emailId: string, data: any) {
       ...(data.aiCriteriaMissing != null && { aiCriteriaMissing: data.aiCriteriaMissing }),
       ...(data.aiSummary         != null && { aiSummary:         data.aiSummary }),
       // n8n sometimes sends candidateName / phone updates alongside AI review
-      ...(data.candidateName     != null && { name:  data.candidateName }),
+      ...(data.candidateName     != null && { name: toTitleCase(data.candidateName) }),
       ...(data.phone             != null && { phone: data.phone }),
     },
     include: {

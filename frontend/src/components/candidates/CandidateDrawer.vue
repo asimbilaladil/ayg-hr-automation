@@ -160,7 +160,7 @@
               </div>
               <div>
                 <label class="label">Phone</label>
-                <input v-model="editForm.phone" class="input" placeholder="+49 …" />
+                <input v-model="editForm.phone" class="input" placeholder="(555) 555-5555" />
               </div>
               <div>
                 <label class="label">Posting Name</label>
@@ -283,7 +283,7 @@ const tabs = [
   { id: 'transcript', label: 'Transcript' },
 ]
 
-const STATUSES = ['pending', 'reviewing', 'reviewed', 'called', 'scheduled', 'rejected', 'hired']
+const STATUSES = ['pending', 'reviewing', 'reviewed', 'called', 'scheduled', 'rejected', 'hired', 'processed']
 
 // Declare refs FIRST before using them in watchers
 const editForm = reactive({

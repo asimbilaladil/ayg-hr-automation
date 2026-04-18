@@ -72,7 +72,7 @@
               </td>
               <td class="px-4 py-3 text-gray-600">{{ s.location }}</td>
               <td class="px-4 py-3 text-gray-700 font-medium">{{ s.dayOfWeek }}</td>
-              <td class="px-4 py-3 text-gray-600 whitespace-nowrap">{{ s.startTime }} – {{ s.endTime }}</td>
+              <td class="px-4 py-3 text-gray-600 whitespace-nowrap">{{ formatTime(s.startTime) }} – {{ formatTime(s.endTime) }}</td>
               <td class="px-4 py-3 text-gray-600">{{ s.slotDuration }}</td>
               <td class="px-4 py-3">
                 <StatusBadge :status="s.active ? 'active' : 'inactive'" />
@@ -157,13 +157,37 @@
               <!-- Start Time -->
               <div>
                 <label class="label">Start Time *</label>
-                <input v-model="form.startTime" class="input" placeholder="09:00" type="time" required />
+                <div class="flex gap-1">
+                  <select v-model="startHour" class="input flex-1" required @change="syncStartTime">
+                    <option value="">Hr</option>
+                    <option v-for="h in HOURS" :key="h" :value="h">{{ h }}</option>
+                  </select>
+                  <select v-model="startMinute" class="input flex-1" required @change="syncStartTime">
+                    <option v-for="m in MINUTES" :key="m" :value="m">{{ m }}</option>
+                  </select>
+                  <select v-model="startPeriod" class="input w-20" required @change="syncStartTime">
+                    <option value="AM">AM</option>
+                    <option value="PM">PM</option>
+                  </select>
+                </div>
               </div>
 
               <!-- End Time -->
               <div>
                 <label class="label">End Time *</label>
-                <input v-model="form.endTime" class="input" placeholder="17:00" type="time" required />
+                <div class="flex gap-1">
+                  <select v-model="endHour" class="input flex-1" required @change="syncEndTime">
+                    <option value="">Hr</option>
+                    <option v-for="h in HOURS" :key="h" :value="h">{{ h }}</option>
+                  </select>
+                  <select v-model="endMinute" class="input flex-1" required @change="syncEndTime">
+                    <option v-for="m in MINUTES" :key="m" :value="m">{{ m }}</option>
+                  </select>
+                  <select v-model="endPeriod" class="input w-20" required @change="syncEndTime">
+                    <option value="AM">AM</option>
+                    <option value="PM">PM</option>
+                  </select>
+                </div>
               </div>
 
               <!-- Active Status -->
@@ -206,7 +230,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { availabilityApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import StatusBadge from '@/components/shared/StatusBadge.vue'
@@ -217,6 +241,79 @@ const loading = ref(false)
 const slots = ref([])
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+const HOURS = ['1','2','3','4','5','6','7','8','9','10','11','12']
+const MINUTES = ['00','15','30','45']
+
+// ── 12-hour ↔ 24-hour helpers ────────────────────────────────────────────────
+function to12(time24) {
+  if (!time24) return { hour: '', minute: '00', period: 'AM' }
+  const [h, m] = time24.split(':').map(Number)
+  const period = h >= 12 ? 'PM' : 'AM'
+  const hour = String(h % 12 || 12)
+  return { hour, minute: String(m).padStart(2, '0'), period }
+}
+
+function to24(hour, minute, period) {
+  if (!hour) return ''
+  let h = parseInt(hour)
+  if (period === 'PM' && h !== 12) h += 12
+  if (period === 'AM' && h === 12) h = 0
+  return `${String(h).padStart(2, '0')}:${minute}`
+}
+
+function formatTime(time24) {
+  if (!time24) return '—'
+  const { hour, minute, period } = to12(time24)
+  return `${hour}:${minute} ${period}`
+}
+
+// AM/PM picker state refs
+const startHour   = ref('')
+const startMinute = ref('00')
+const startPeriod = ref('AM')
+const endHour     = ref('')
+const endMinute   = ref('00')
+const endPeriod   = ref('AM')
+
+function syncStartTime() { form.startTime = to24(startHour.value, startMinute.value, startPeriod.value) }
+function syncEndTime()   { form.endTime   = to24(endHour.value,   endMinute.value,   endPeriod.value) }
+
+function setStartPickers(time24) {
+  const p = to12(time24)
+  startHour.value = p.hour; startMinute.value = p.minute; startPeriod.value = p.period
+}
+function setEndPickers(time24) {
+  const p = to12(time24)
+  endHour.value = p.hour; endMinute.value = p.minute; endPeriod.value = p.period
+}
+
+// ── Conflict validation ───────────────────────────────────────────────────────
+function timeToMins(t) {
+  if (!t) return 0
+  const [h, m] = t.split(':').map(Number)
+  return h * 60 + m
+}
+
+function checkConflict(managerId, dayOfWeek, startTime, endTime, excludeId = null) {
+  if (!startTime || !endTime) return null
+  const newStart = timeToMins(startTime)
+  const newEnd   = timeToMins(endTime)
+  if (newEnd <= newStart) return 'End time must be after start time.'
+
+  for (const s of slots.value) {
+    if (excludeId && s.id === excludeId) continue
+    const mgr = managers.value.find(m => m.name === s.managerName && m.email === s.managerEmail)
+    if (!mgr || mgr.id !== managerId) continue
+    if (s.dayOfWeek !== dayOfWeek) continue
+    const exStart = timeToMins(s.startTime)
+    const exEnd   = timeToMins(s.endTime)
+    // Overlap when intervals intersect
+    if (newStart < exEnd && newEnd > exStart) {
+      return `Conflict with existing slot: ${s.dayOfWeek} ${formatTime(s.startTime)}–${formatTime(s.endTime)}`
+    }
+  }
+  return null
+}
 
 const filters = reactive({ location: '', dayOfWeek: '', active: '' })
 
@@ -322,6 +419,8 @@ function resetForm() {
     slotDuration: '15 Min', active: true
   })
   managerLocations.value = []
+  startHour.value = ''; startMinute.value = '00'; startPeriod.value = 'AM'
+  endHour.value   = ''; endMinute.value   = '00'; endPeriod.value   = 'AM'
 }
 
 function openCreate() {
@@ -345,6 +444,8 @@ async function openEdit(s) {
     slotDuration: s.slotDuration || '15 Min',
     active: s.active !== false,
   })
+  setStartPickers(s.startTime || '')
+  setEndPickers(s.endTime || '')
 
   // Load manager locations if manager exists
   if (form.managerId) {
@@ -375,6 +476,27 @@ async function saveModal() {
     }
     if (!location) {
       formError.value = 'Location is required'
+      return
+    }
+    if (!form.dayOfWeek) {
+      formError.value = 'Day of week is required'
+      return
+    }
+    if (!form.startTime || !form.endTime) {
+      formError.value = 'Start and end times are required'
+      return
+    }
+
+    // Conflict / overlap check
+    const conflictMsg = checkConflict(
+      form.managerId,
+      form.dayOfWeek,
+      form.startTime,
+      form.endTime,
+      modalMode.value === 'edit' ? editTarget.value.id : null
+    )
+    if (conflictMsg) {
+      formError.value = conflictMsg
       return
     }
 
