@@ -385,22 +385,97 @@ export async function getSuggestedSlots(input: {
 }
 
 // ✅ Slot validation — accepts locationId, managerId, or location name
+// Returns:
+//   { valid: true,  slot: {...} }                            — slot is free
+//   { valid: false, suggestions: [...up to 3 free slots] }  — taken or outside window; same-day alternatives
+//   { valid: false, suggestions: [] }                        — no availability on that day at all
 export async function validateSlot(input: any) {
   const { locationId, location, date, startTime } = input;
 
-  // resolveLocation handles locationId, managerId, and name fallback
+  // ── 1. Resolve location ───────────────────────────────────────────────────
   const locationRecord = await resolveLocation(locationId || location);
-  if (!locationRecord) return { valid: false };
+  if (!locationRecord) return { valid: false, suggestions: [] };
 
-  const existing = await prisma.appointment.findFirst({
+  // ── 2. Derive day-of-week from date ───────────────────────────────────────
+  const dayOfWeek = new Date(`${date}T12:00:00`).toLocaleString('en-US', { weekday: 'long' });
+
+  // ── 3. Fetch active availability windows for this location + day ──────────
+  const windows = await prisma.managerAvailability.findMany({
     where: {
       locationId: locationRecord.id,
-      interviewDate: new Date(date),
-      startTime,
+      dayOfWeek: { equals: dayOfWeek, mode: 'insensitive' },
+      active: true,
     },
+    include: { manager_rel: true },
   });
 
-  return { valid: !existing };
+  // No windows at all on this day → nothing available
+  if (!windows.length) return { valid: false, suggestions: [] };
+
+  // ── 4. Fetch booked appointments for this location on this date ───────────
+  const dateStart = new Date(`${date}T00:00:00`);
+  const dateEnd   = new Date(`${date}T23:59:59`);
+
+  const booked = await prisma.appointment.findMany({
+    where: {
+      locationId: locationRecord.id,
+      interviewDate: { gte: dateStart, lte: dateEnd },
+    },
+    include: { manager_rel: true },
+  });
+
+  const bookedSet = new Set(
+    booked.map((a: any) => {
+      const t = normalize12HourTo24Hour(a.startTime);
+      return a.manager_rel?.email ? `${a.manager_rel.email}__${t}` : `ANY__${t}`;
+    })
+  );
+
+  // ── 5. Generate all free slots for this day ───────────────────────────────
+  const normalizedRequestedTime = normalize12HourTo24Hour(startTime.trim());
+
+  const allFreeSlots: any[] = [];
+
+  for (const window of windows) {
+    const startMins = timeToMinutes(window.startTime);
+    const endMins   = timeToMinutes(window.endTime);
+    const duration  = parseDuration(window.slotDuration || '15 Min');
+
+    for (let t = startMins; t + duration <= endMins; t += duration) {
+      const slotStart   = minutesToTime(t);
+      const slotEnd     = minutesToTime(t + duration);
+      const managerKey  = `${window.manager_rel!.email}__${slotStart}`;
+      const anyKey      = `ANY__${slotStart}`;
+
+      if (!bookedSet.has(managerKey) && !bookedSet.has(anyKey)) {
+        allFreeSlots.push({
+          date,
+          day:          dayOfWeek,
+          startTime:    slotStart,
+          endTime:      slotEnd,
+          displayTime:  formatTo12Hour(slotStart),
+          managerName:  window.manager_rel!.name,
+          managerEmail: window.manager_rel!.email,
+          location:     locationRecord.name,
+          locationId:   locationRecord.id,
+        });
+      }
+    }
+  }
+
+  // ── 6. Check if the requested slot is among the free slots ───────────────
+  const matchedSlot = allFreeSlots.find(s => s.startTime === normalizedRequestedTime);
+
+  if (matchedSlot) {
+    return { valid: true, slot: matchedSlot };
+  }
+
+  // ── 7. Not available — return up to 3 other free slots as suggestions ─────
+  const suggestions = allFreeSlots
+    .filter(s => s.startTime !== normalizedRequestedTime)
+    .slice(0, 3);
+
+  return { valid: false, suggestions };
 }
 
 export async function createAvailability(data: CreateAvailabilityInput) {
