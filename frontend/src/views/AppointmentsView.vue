@@ -121,19 +121,19 @@
             <div class="grid grid-cols-2 gap-4">
               <div>
                 <label class="label">Candidate Name</label>
-                <input v-model="editForm.candidateName" class="input" />
+                <input :value="editForm.candidateName" class="input bg-gray-50 text-gray-500 cursor-not-allowed" disabled />
               </div>
               <div>
                 <label class="label">Job Role</label>
-                <input v-model="editForm.jobRole" class="input" />
+                <input :value="editForm.jobRole" class="input bg-gray-50 text-gray-500 cursor-not-allowed" disabled />
               </div>
               <div>
                 <label class="label">Location</label>
-                <input v-model="editForm.location" class="input" />
+                <input :value="editForm.location" class="input bg-gray-50 text-gray-500 cursor-not-allowed" disabled />
               </div>
               <div>
                 <label class="label">Interview Date</label>
-                <input v-model="editForm.interviewDate" class="input" type="date" />
+                <input :value="editForm.interviewDate" class="input bg-gray-50 text-gray-500 cursor-not-allowed" type="date" disabled />
               </div>
               <div>
                 <label class="label">Start Time</label>
@@ -143,21 +143,10 @@
                 <label class="label">End Time</label>
                 <input v-model="editForm.endTime" class="input" placeholder="09:20" />
               </div>
-              <div>
-                <label class="label">Manager Name</label>
-                <input v-model="editForm.managerName" class="input" />
+              <div class="col-span-2">
+                <label class="label">Manager</label>
+                <input :value="editForm.managerName" class="input bg-gray-50 text-gray-500 cursor-not-allowed" disabled />
               </div>
-              <div>
-                <label class="label">Manager Email</label>
-                <input v-model="editForm.managerEmail" class="input" type="email" />
-              </div>
-            </div>
-            <div>
-              <label class="label">Active</label>
-              <select v-model="editForm.active" class="input">
-                <option :value="true">Active</option>
-                <option :value="false">Inactive</option>
-              </select>
             </div>
             <div v-if="editError" class="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-700">{{ editError }}</div>
             <div class="flex justify-end gap-3">
@@ -268,7 +257,7 @@ const editError = ref('')
 const editForm = reactive({
   candidateName: '', jobRole: '', location: '',
   interviewDate: '', startTime: '', endTime: '',
-  managerName: '', managerEmail: '', active: true
+  managerName: ''
 })
 
 function openEdit(a) {
@@ -281,8 +270,6 @@ function openEdit(a) {
     startTime: a.startTime || '',
     endTime: a.endTime || '',
     managerName: a.managerName || '',
-    managerEmail: a.managerEmail || '',
-    active: a.active !== false,
   })
   editModal.value = true
 }
