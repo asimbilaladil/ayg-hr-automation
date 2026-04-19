@@ -1,11 +1,15 @@
 /**
  * Minimal static file server for the Vue SPA dist folder.
  * SPA routing: any unknown path falls back to index.html.
- * Used by PM2 instead of the `serve` CLI to avoid PATH/version issues.
+ * Uses ES module syntax because package.json has "type": "module".
  */
-const http = require('http');
-const path = require('path');
-const fs   = require('fs');
+import http from 'http';
+import path from 'path';
+import fs   from 'fs';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname  = path.dirname(__filename);
 
 const DIST = path.join(__dirname, 'dist');
 const PORT = Number(process.env.PORT) || 3000;
@@ -28,7 +32,6 @@ const MIME = {
 };
 
 const server = http.createServer((req, res) => {
-  // Strip query string and decode URI
   let urlPath = req.url.split('?')[0];
   try { urlPath = decodeURIComponent(urlPath); } catch (_) {}
 
@@ -39,9 +42,8 @@ const server = http.createServer((req, res) => {
     res.writeHead(403); res.end('Forbidden'); return;
   }
 
-  // Resolve to a file
+  // Resolve to a file — SPA fallback → index.html
   if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
-    // SPA fallback → index.html
     filePath = path.join(DIST, 'index.html');
   }
 
