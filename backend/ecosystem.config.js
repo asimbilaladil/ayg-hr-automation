@@ -22,15 +22,15 @@ module.exports = {
     // pm2 serve handles SPA routing: all unknown paths → index.html
     {
       name: 'hr-frontend',
-      script: 'serve',
-      args: '-s dist --listen 3000',
+      script: 'server.js',
       cwd: '/root/ayg-hr-automation/frontend',
-      interpreter: 'none',
+      instances: 1,
       autorestart: true,
       watch: false,
       max_memory_restart: '128M',
       env: {
         NODE_ENV: 'production',
+        PORT: 3000,
       },
       error_file: 'logs/err.log',
       out_file: 'logs/out.log',
