@@ -7,7 +7,8 @@ ALTER TABLE "Candidate"
   ADD COLUMN IF NOT EXISTS "aiCriteriaMet"     TEXT,
   ADD COLUMN IF NOT EXISTS "aiCriteriaMissing" TEXT,
   ADD COLUMN IF NOT EXISTS "aiSummary"         TEXT,
-  ADD COLUMN IF NOT EXISTS "transcript"        TEXT;
+  ADD COLUMN IF NOT EXISTS "transcript"        TEXT,
+  ADD COLUMN IF NOT EXISTS "recordingUrl"      TEXT;
 
 -- Optional index for filtering/sorting by AI recommendation and score
 CREATE INDEX IF NOT EXISTS "Candidate_aiRecommendation_idx" ON "Candidate"("aiRecommendation");

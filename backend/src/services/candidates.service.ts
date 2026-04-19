@@ -403,6 +403,49 @@ export async function updateCallResult(emailId: string, data: any) {
   return flattenCandidate(updated);
 }
 
+export async function updateAIReviewById(id: string, data: any) {
+  const updated = await prisma.candidate.update({
+    where: { id },
+    data: {
+      status:            data.status            || 'reviewed',
+      ...(data.aiScore != null && data.aiScore > 0 && { aiScore: data.aiScore }),
+      ...(data.aiRecommendation  != null && { aiRecommendation:  data.aiRecommendation }),
+      ...(data.aiCriteriaMet     != null && { aiCriteriaMet:     data.aiCriteriaMet }),
+      ...(data.aiCriteriaMissing != null && { aiCriteriaMissing: data.aiCriteriaMissing }),
+      ...(data.aiSummary         != null && { aiSummary:         data.aiSummary }),
+      ...(data.candidateName     != null && { name: toTitleCase(data.candidateName) }),
+      ...(data.phone             != null && { phone: data.phone }),
+    },
+    include: {
+      posting_rel: true,
+      location_rel: true,
+      hiringManager_rel: true,
+      recruiter_rel: true,
+      appointment: true,
+    }
+  });
+  return flattenCandidate(updated);
+}
+
+export async function updateCallResultById(id: string, data: any) {
+  const updated = await prisma.candidate.update({
+    where: { id },
+    data: {
+      status:     data.status     || 'called',
+      ...(data.transcript   != null && { transcript:   data.transcript }),
+      ...(data.recordingUrl != null && { recordingUrl: data.recordingUrl }),
+    },
+    include: {
+      posting_rel: true,
+      location_rel: true,
+      hiringManager_rel: true,
+      recruiter_rel: true,
+      appointment: true,
+    }
+  });
+  return flattenCandidate(updated);
+}
+
 export async function resetProblematicCandidates() {
   return prisma.candidate.updateMany({
     where: {

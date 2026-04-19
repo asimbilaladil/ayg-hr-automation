@@ -10,6 +10,8 @@ router.get('/by-email/:emailId', apiKeyAuth, ctrl.getByEmailId);
 router.post('/', apiKeyAuth, ctrl.create);
 router.patch('/:emailId/ai-review', apiKeyAuth, ctrl.updateAIReview);
 router.patch('/:emailId/call-result', apiKeyAuth, ctrl.updateCallResult);
+router.patch('/id/:candidateId/ai-review', apiKeyAuth, ctrl.updateAIReviewById);
+router.patch('/id/:candidateId/call-result', apiKeyAuth, ctrl.updateCallResultById);
 router.post('/reset-problematic', apiKeyAuth, ctrl.resetProblematic);
 router.patch('/:emailId/status', apiKeyAuth, ctrl.updateStatus);
 

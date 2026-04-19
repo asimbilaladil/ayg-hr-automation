@@ -68,6 +68,23 @@ export async function updateCallResult(req: Request, res: Response, next: NextFu
   } catch (err) { next(err); }
 }
 
+// ID-based versions (use candidateId CUID instead of emailId)
+export async function updateAIReviewById(req: Request, res: Response, next: NextFunction) {
+  try {
+    const data = UpdateAIReviewSchema.parse(req.body);
+    const candidate = await service.updateAIReviewById(req.params.candidateId, data);
+    res.json(candidate);
+  } catch (err) { next(err); }
+}
+
+export async function updateCallResultById(req: Request, res: Response, next: NextFunction) {
+  try {
+    const data = UpdateCallResultSchema.parse(req.body);
+    const candidate = await service.updateCallResultById(req.params.candidateId, data);
+    res.json(candidate);
+  } catch (err) { next(err); }
+}
+
 export async function update(req: Request, res: Response, next: NextFunction) {
   try {
     const data = UpdateCandidateSchema.parse(req.body);
