@@ -29,7 +29,15 @@ export async function create(req: Request, res: Response, next: NextFunction) {
     const data = CreateAppointmentSchema.parse(req.body);
     const appointment = await service.createAppointment(data);
     res.status(201).json(appointment);
-  } catch (err) { next(err); }
+  } catch (err: any) {
+    // Surface specific errors as 400 instead of generic 500
+    const known = ['Candidate not found', 'Location not found', 'Invalid interviewTime format'];
+    if (known.some(msg => err?.message?.includes(msg))) {
+      return res.status(400).json({ error: err.message });
+    }
+    console.error('[appointments.create] Unexpected error:', err);
+    next(err);
+  }
 }
 
 export async function update(req: Request, res: Response, next: NextFunction) {

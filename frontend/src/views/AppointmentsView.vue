@@ -63,7 +63,6 @@
               v-for="a in appointments"
               :key="a.id"
               class="hover:bg-gray-50 transition-colors"
-              :class="{ 'opacity-50': !a.active }"
             >
               <td class="px-4 py-3">
                 <p class="font-medium text-gray-900">{{ a.candidateName }}</p>
@@ -71,7 +70,7 @@
               <td class="px-4 py-3 text-gray-600">{{ a.jobRole || '—' }}</td>
               <td class="px-4 py-3 text-gray-600">{{ a.location }}</td>
               <td class="px-4 py-3 text-gray-700 whitespace-nowrap">{{ formatDate(a.interviewDate) }}</td>
-              <td class="px-4 py-3 text-gray-600 whitespace-nowrap">{{ a.startTime }} – {{ a.endTime }}</td>
+              <td class="px-4 py-3 text-gray-600 whitespace-nowrap">{{ formatTime(a.startTime) }} – {{ formatTime(a.endTime) }}</td>
               <td class="px-4 py-3">
                 <div>
                   <p class="text-sm text-gray-700">{{ a.managerName || '—' }}</p>
@@ -79,7 +78,7 @@
                 </div>
               </td>
               <td class="px-4 py-3">
-                <StatusBadge :status="a.active ? 'active' : 'inactive'" />
+                <StatusBadge status="scheduled" />
               </td>
               <td v-if="auth.isManager" class="px-4 py-3">
                 <div class="flex items-center gap-2">
@@ -216,6 +215,17 @@ function clearFilters() {
   fetchData()
 }
 
+function normalizeAppointment(a) {
+  return {
+    ...a,
+    candidateName: a.candidate_rel?.name || '—',
+    jobRole:       a.candidate_rel?.posting_rel?.name || '—',
+    location:      a.location_rel?.name || '—',
+    managerName:   a.manager_rel?.name || '—',
+    managerEmail:  a.manager_rel?.email || '',
+  }
+}
+
 async function fetchData() {
   loading.value = true
   try {
@@ -224,7 +234,8 @@ async function fetchData() {
     if (filters.date) params.date = filters.date
     if (filters.managerEmail) params.managerEmail = filters.managerEmail
     const { data } = await appointmentsApi.list(params)
-    appointments.value = data?.data || data || []
+    const raw = data?.data || data || []
+    appointments.value = raw.map(normalizeAppointment)
     total.value = data?.total ?? appointments.value.length
   } catch (err) {
     console.error(err)
@@ -236,6 +247,17 @@ async function fetchData() {
 function formatDate(d) {
   if (!d) return '—'
   return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+function formatTime(t) {
+  if (!t) return '—'
+  const [hStr, mStr] = t.split(':')
+  let h = parseInt(hStr, 10)
+  const m = mStr || '00'
+  const period = h >= 12 ? 'PM' : 'AM'
+  if (h === 0) h = 12
+  else if (h > 12) h -= 12
+  return `${h}:${m} ${period}`
 }
 
 // Edit
@@ -271,7 +293,7 @@ async function saveEdit() {
   try {
     const { data } = await appointmentsApi.update(editTarget.value.id, editForm)
     const idx = appointments.value.findIndex(a => a.id === editTarget.value.id)
-    if (idx !== -1) appointments.value[idx] = data
+    if (idx !== -1) appointments.value[idx] = normalizeAppointment(data)
     editModal.value = false
   } catch (err) {
     editError.value = err.response?.data?.error || 'Failed to save'

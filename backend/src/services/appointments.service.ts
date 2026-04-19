@@ -18,15 +18,30 @@ export class AppointmentService {
     });
     if (!location) throw new Error(`Location not found: ${locationId}`);
 
-    // ── 3. Convert 12-hour interviewTime → 24-hour startTime ────────────────
-    function to24Hour(time12: string): string {
-      const match = time12.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
-      if (!match) throw new Error(`Invalid interviewTime format: "${time12}". Expected e.g. "9:00 AM"`);
-      let [, h, m, period] = match;
-      let hour = parseInt(h, 10);
-      if (period.toUpperCase() === 'PM' && hour !== 12) hour += 12;
-      if (period.toUpperCase() === 'AM' && hour === 12) hour = 0;
-      return `${String(hour).padStart(2, '0')}:${m}`;
+    // ── 3. Normalize interviewTime → 24-hour startTime ──────────────────────
+    //    Accepts both "9:00 AM" (12-hour) and "09:00" / "9:00" (24-hour)
+    function to24Hour(time: string): string {
+      const t = time.trim();
+
+      // Already 24-hour: "09:00" or "9:00" (no AM/PM)
+      const plain = t.match(/^(\d{1,2}):(\d{2})$/);
+      if (plain) {
+        const h = parseInt(plain[1], 10);
+        if (h < 0 || h > 23) throw new Error(`Invalid interviewTime: "${time}"`);
+        return `${String(h).padStart(2, '0')}:${plain[2]}`;
+      }
+
+      // 12-hour: "9:00 AM" / "2:30 PM"
+      const ampm = t.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+      if (ampm) {
+        let hour = parseInt(ampm[1], 10);
+        const period = ampm[3].toUpperCase();
+        if (period === 'PM' && hour !== 12) hour += 12;
+        if (period === 'AM' && hour === 12) hour = 0;
+        return `${String(hour).padStart(2, '0')}:${ampm[2]}`;
+      }
+
+      throw new Error(`Invalid interviewTime format: "${time}". Expected "9:00 AM" or "09:00"`);
     }
 
     const startTime = to24Hour(interviewTime);
@@ -82,7 +97,7 @@ export class AppointmentService {
         slotDuration,
       },
       include: {
-        candidate_rel: true,
+        candidate_rel: { include: { posting_rel: true } },
         location_rel: true,
         manager_rel: true,
       },
@@ -104,7 +119,7 @@ export class AppointmentService {
     return prisma.appointment.findMany({
       where: scopedManagerId ? { managerId: scopedManagerId } : undefined,
       include: {
-        candidate_rel: true,
+        candidate_rel: { include: { posting_rel: true } },
         location_rel: true,
         manager_rel: true
       },
@@ -116,7 +131,7 @@ export class AppointmentService {
     return prisma.appointment.findUnique({
       where: { id },
       include: {
-        candidate_rel: true,
+        candidate_rel: { include: { posting_rel: true } },
         location_rel: true,
         manager_rel: true
       }
