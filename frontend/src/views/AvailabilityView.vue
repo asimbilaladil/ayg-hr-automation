@@ -108,12 +108,22 @@
               <!-- Manager Dropdown -->
               <div class="col-span-2">
                 <label class="label">Manager *</label>
-                <select v-model="form.managerId" class="input" required @change="onManagerChange">
+                <select
+                  v-model="form.managerId"
+                  class="input"
+                  required
+                  :disabled="auth.user?.role === 'MANAGER'"
+                  :class="{ 'opacity-60 bg-gray-100 cursor-not-allowed': auth.user?.role === 'MANAGER' }"
+                  @change="onManagerChange"
+                >
                   <option value="">Select manager…</option>
                   <option v-for="m in managers" :key="m.id" :value="m.id">
                     {{ m.name }}
                   </option>
                 </select>
+                <p v-if="auth.user?.role === 'MANAGER'" class="text-xs text-gray-400 mt-1">
+                  You can only create slots for yourself.
+                </p>
               </div>
 
               <!-- Location Dropdown -->
@@ -423,11 +433,17 @@ function resetForm() {
   endHour.value   = ''; endMinute.value   = '00'; endPeriod.value   = 'AM'
 }
 
-function openCreate() {
+async function openCreate() {
   resetForm()
   modalMode.value = 'create'
   formError.value = ''
-  console.log('Opening create modal, form reset:', form)
+
+  // If the logged-in user is a Manager, auto-select themselves
+  if (auth.user?.role === 'MANAGER') {
+    form.managerId = auth.user.id
+    await onManagerChange()
+  }
+
   modal.value = true
 }
 
