@@ -32,3 +32,23 @@ export function rbac(...allowedRoles: Role[]) {
     next();
   };
 }
+
+/** Exact role check — only the listed roles pass (no hierarchy inheritance). */
+export function rbacExact(...allowedRoles: Role[]) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (req.isN8N) return next();
+
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    if (!(allowedRoles as string[]).includes(req.user.role)) {
+      return res.status(403).json({
+        error: 'Forbidden',
+        message: `Requires role: ${allowedRoles.join(' or ')}`,
+      });
+    }
+
+    next();
+  };
+}

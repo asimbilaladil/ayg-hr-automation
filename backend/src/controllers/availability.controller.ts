@@ -10,7 +10,10 @@ import {
 export async function list(req: Request, res: Response, next: NextFunction) {
   try {
     const query = AvailabilityQuerySchema.parse(req.query);
-    const result = await service.listAvailability(query);
+    // Managers see only their own availability windows; Admin/HR/n8n see everything
+    const scopedManagerId =
+      req.user?.role === 'MANAGER' ? req.user.id : undefined;
+    const result = await service.listAvailability(query, scopedManagerId);
     res.json(result);
   } catch (err) { next(err); }
 }

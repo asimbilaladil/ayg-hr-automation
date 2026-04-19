@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma';
+import { env } from '../config/env';
 import {
   CreateCandidateInput,
   UpdateCandidateInput,
@@ -44,7 +45,7 @@ async function findOrCreateManager(managerName: string, locationIds?: string[]):
   });
 
   if (!manager) {
-    const tempEmail = `${trimmedName.toLowerCase().replace(/\s+/g, '.')}@temp.placeholder`;
+    const tempEmail = `${trimmedName.toLowerCase().replace(/\s+/g, '.')}@${env.ORG_EMAIL_DOMAIN}`;
 
     manager = await prisma.user.create({
       data: {
@@ -83,12 +84,20 @@ function flattenCandidate(candidate: any) {
   };
 }
 
-export async function listCandidates(query: CandidateQuery & { hiringManager?: string }) {
+export async function listCandidates(
+  query: CandidateQuery & { hiringManager?: string },
+  scopedManagerId?: string,   // when set, restrict to this manager's candidates
+) {
   const { location, postingName, hiringManager, search, page, limit, sortBy, sortOrder } = query;
   const aiRecommendation = (query as any).aiRecommendation;
   const status = (query as any).status;
 
   const where: Record<string, any> = {};
+
+  // Manager-scoped: only show candidates assigned to this manager
+  if (scopedManagerId) {
+    where.hiringManagerId = scopedManagerId;
+  }
 
   if (status) where.status = status;
 

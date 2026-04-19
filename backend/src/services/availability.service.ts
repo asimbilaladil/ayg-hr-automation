@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma';
+import { env } from '../config/env';
 import {
   CreateAvailabilityInput,
   UpdateAvailabilityInput,
@@ -103,8 +104,16 @@ async function findOrCreateManager(managerName: string, managerEmail: string, lo
   return manager.id;
 }
 
-export async function listAvailability(query: AvailabilityQuery) {
+export async function listAvailability(
+  query: AvailabilityQuery,
+  scopedManagerId?: string,  // when set, restrict to this manager's windows
+) {
   const where: Record<string, any> = {};
+
+  // Manager-scoped: only show their own availability windows
+  if (scopedManagerId) {
+    where.managerId = scopedManagerId;
+  }
 
   if (query.location) {
     const location = await prisma.location.findFirst({

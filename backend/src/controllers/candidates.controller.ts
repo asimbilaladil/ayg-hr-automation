@@ -11,7 +11,10 @@ import {
 export async function list(req: Request, res: Response, next: NextFunction) {
   try {
     const query = CandidateQuerySchema.parse(req.query);
-    const result = await service.listCandidates(query);
+    // Managers see only their own candidates; Admin/HR/n8n see everything
+    const scopedManagerId =
+      req.user?.role === 'MANAGER' ? req.user.id : undefined;
+    const result = await service.listCandidates(query, scopedManagerId);
     res.json(result);
   } catch (err) { next(err); }
 }

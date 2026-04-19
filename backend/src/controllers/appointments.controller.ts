@@ -9,7 +9,10 @@ import {
 export async function list(req: Request, res: Response, next: NextFunction) {
   try {
     AppointmentQuerySchema.parse(req.query);
-    const result = await service.listAppointments();
+    // Managers see only their own appointments; Admin/HR/n8n see everything
+    const scopedManagerId =
+      req.user?.role === 'MANAGER' ? req.user.id : undefined;
+    const result = await service.listAppointments(scopedManagerId);
     res.json(result);
   } catch (err) { next(err); }
 }

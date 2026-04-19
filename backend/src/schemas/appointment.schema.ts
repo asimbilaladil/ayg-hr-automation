@@ -1,16 +1,11 @@
 import { z } from 'zod';
 
 export const CreateAppointmentSchema = z.object({
-  location: z.string().min(1),
-  managerName: z.string().optional(),
-  managerEmail: z.string().email().optional(),
-  candidateName: z.string().min(1),
-  jobRole: z.string().optional(),
-  interviewDate: z.string().min(1), // ISO date string or YYYY-MM-DD
-  day: z.string().optional(),
-  startTime: z.string().min(1),
-  endTime: z.string().optional(),
-  slotDuration: z.string().default('20 min'),
+  candidateId:   z.string().min(1),          // Candidate.id (cuid)
+  locationId:    z.string().min(1),          // Location.id  (cuid)
+  interviewDate: z.string().min(1),          // YYYY-MM-DD
+  interviewTime: z.string().min(1),          // 12-hour e.g. "9:00 AM"
+  postingId:     z.string().optional(),      // Posting.id — accepted but stored on candidate
 });
 
 export const UpdateAppointmentSchema = z.object({

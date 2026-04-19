@@ -71,6 +71,8 @@ export const usersApi = {
   list: () => api.get('/api/users'),
   updateRole: (id, role) => api.patch(`/api/users/${id}/role`, { role }),
   deactivate: (id) => api.patch(`/api/users/${id}/deactivate`),
+  updateEmail: (id, email) => api.patch(`/api/users/${id}/email`, { email }),
+  resetPassword: (id) => api.post(`/api/users/${id}/reset-password`),
 }
 
 export default api

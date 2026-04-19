@@ -6,6 +6,10 @@ const UpdateRoleSchema = z.object({
   role: z.enum(['ADMIN', 'MANAGER', 'HR']),
 });
 
+const UpdateEmailSchema = z.object({
+  email: z.string().email(),
+});
+
 export async function list(req: Request, res: Response, next: NextFunction) {
   try {
     const users = await service.listUsers();
@@ -26,6 +30,26 @@ export async function updateRole(req: Request, res: Response, next: NextFunction
     const { role } = UpdateRoleSchema.parse(req.body);
     const user = await service.updateUserRole(req.params.id, role);
     res.json(user);
+  } catch (err) { next(err); }
+}
+
+export async function updateEmail(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { email } = UpdateEmailSchema.parse(req.body);
+    const user = await service.updateUserEmail(req.params.id, email);
+    res.json(user);
+  } catch (err: any) {
+    if (err.message === 'EMAIL_TAKEN') {
+      return res.status(409).json({ error: 'That email address is already in use' });
+    }
+    next(err);
+  }
+}
+
+export async function resetPassword(req: Request, res: Response, next: NextFunction) {
+  try {
+    const result = await service.resetUserPassword(req.params.id);
+    res.json(result);
   } catch (err) { next(err); }
 }
 
