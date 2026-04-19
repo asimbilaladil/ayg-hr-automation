@@ -384,11 +384,20 @@ export async function updateAIReview(emailId: string, data: any) {
   return flattenCandidate(updated);
 }
 
+/** Map raw Vapi call statuses to meaningful internal statuses */
+function resolveCallStatus(raw?: string): string {
+  if (!raw) return 'called';
+  const s = raw.toLowerCase().trim();
+  if (s === 'ended' || s === 'completed') return 'called';
+  if (s === 'no-answer' || s === 'busy' || s === 'failed') return 'pending';
+  return s; // pass through any other value unchanged
+}
+
 export async function updateCallResult(emailId: string, data: any) {
   const updated = await prisma.candidate.update({
     where: { emailId },
     data: {
-      status:     data.status     || 'called',
+      status:     resolveCallStatus(data.status),
       ...(data.transcript   != null && { transcript:   data.transcript }),
       ...(data.recordingUrl != null && { recordingUrl: data.recordingUrl }),
     },
@@ -431,7 +440,7 @@ export async function updateCallResultById(id: string, data: any) {
   const updated = await prisma.candidate.update({
     where: { id },
     data: {
-      status:     data.status     || 'called',
+      status:     resolveCallStatus(data.status),
       ...(data.transcript   != null && { transcript:   data.transcript }),
       ...(data.recordingUrl != null && { recordingUrl: data.recordingUrl }),
     },

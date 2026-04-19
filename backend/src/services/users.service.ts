@@ -89,6 +89,46 @@ export async function resetUserPassword(id: string): Promise<{ tempPassword: str
   return { tempPassword };
 }
 
+export async function createUser(data: {
+  name: string;
+  email: string;
+  role: Role;
+  locationName?: string;
+}): Promise<{ user: any; tempPassword: string; location?: any }> {
+  const existing = await prisma.user.findFirst({ where: { email: data.email.toLowerCase() } });
+  if (existing) throw new Error('EMAIL_TAKEN');
+
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  let tempPassword = '';
+  for (let i = 0; i < 12; i++) {
+    tempPassword += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  const passwordHash = await bcrypt.hash(tempPassword, 12);
+
+  const user = await prisma.user.create({
+    data: {
+      name: data.name.trim(),
+      email: data.email.toLowerCase().trim(),
+      role: data.role,
+      passwordHash,
+    },
+    select: { id: true, email: true, name: true, role: true, isActive: true, createdAt: true },
+  });
+
+  let location;
+  if (data.role === 'MANAGER' && data.locationName?.trim()) {
+    location = await prisma.location.create({
+      data: {
+        name: data.locationName.trim(),
+        isActive: true,
+        managerId: user.id,
+      },
+    });
+  }
+
+  return { user, tempPassword, location };
+}
+
 export async function deactivateUser(id: string) {
   const user = await prisma.user.findUnique({ where: { id } });
   if (!user) throw new Error('NOT_FOUND');

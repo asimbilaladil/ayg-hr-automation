@@ -6,6 +6,13 @@ const UpdateRoleSchema = z.object({
   role: z.enum(['ADMIN', 'MANAGER', 'HR']),
 });
 
+const CreateUserSchema = z.object({
+  name: z.string().min(1),
+  email: z.string().email(),
+  role: z.enum(['ADMIN', 'HR', 'MANAGER']),
+  locationName: z.string().optional(),
+});
+
 const UpdateEmailSchema = z.object({
   email: z.string().email(),
 });
@@ -14,6 +21,19 @@ const ChangePasswordSchema = z.object({
   currentPassword: z.string().min(1),
   newPassword: z.string().min(8, 'New password must be at least 8 characters'),
 });
+
+export async function createUser(req: Request, res: Response, next: NextFunction) {
+  try {
+    const data = CreateUserSchema.parse(req.body);
+    const result = await service.createUser(data);
+    res.status(201).json(result);
+  } catch (err: any) {
+    if (err.message === 'EMAIL_TAKEN') {
+      return res.status(409).json({ error: 'That email address is already in use' });
+    }
+    next(err);
+  }
+}
 
 export async function list(req: Request, res: Response, next: NextFunction) {
   try {

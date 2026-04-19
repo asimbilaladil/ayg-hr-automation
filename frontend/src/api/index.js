@@ -69,6 +69,7 @@ export const availabilityApi = {
 // ── Users ────────────────────────────────────────────────────────────────────
 export const usersApi = {
   list: () => api.get('/api/users'),
+  create: (data) => api.post('/api/users', data),
   updateRole: (id, role) => api.patch(`/api/users/${id}/role`, { role }),
   deactivate: (id) => api.patch(`/api/users/${id}/deactivate`),
   updateEmail: (id, email) => api.patch(`/api/users/${id}/email`, { email }),

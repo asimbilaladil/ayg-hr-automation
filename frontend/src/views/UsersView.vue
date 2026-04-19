@@ -1,9 +1,18 @@
 <template>
   <div class="space-y-4">
     <!-- Header -->
-    <div>
-      <h2 class="text-xl font-bold text-gray-900">User Management</h2>
-      <p class="text-sm text-gray-500 mt-0.5">Manage roles and access for your organisation</p>
+    <div class="flex items-center justify-between">
+      <div>
+        <h2 class="text-xl font-bold text-gray-900">User Management</h2>
+        <p class="text-sm text-gray-500 mt-0.5">Manage roles and access for your organisation</p>
+      </div>
+      <button
+        v-if="auth.user?.role === 'ADMIN' || auth.user?.role === 'HR'"
+        class="btn-primary"
+        @click="openCreateUser"
+      >
+        + Create User
+      </button>
     </div>
 
     <!-- Table -->
@@ -166,6 +175,104 @@
       </div>
     </div>
 
+    <!-- ── Create User Modal ────────────────────────────────────────── -->
+    <div v-if="createModal" class="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6 space-y-4">
+        <h3 class="text-lg font-bold text-gray-900">Create New User</h3>
+
+        <div class="space-y-3">
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Full Name <span class="text-red-500">*</span></label>
+            <input v-model="createForm.name" type="text" placeholder="Jane Smith"
+              class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-brand-500 focus:border-brand-500 focus:outline-none" />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Email <span class="text-red-500">*</span></label>
+            <input v-model="createForm.email" type="email" placeholder="jane@aygfoods.com"
+              class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-brand-500 focus:border-brand-500 focus:outline-none" />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Role <span class="text-red-500">*</span></label>
+            <select v-model="createForm.role"
+              class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-brand-500 focus:border-brand-500 focus:outline-none">
+              <option value="HR">HR</option>
+              <option value="MANAGER">Manager</option>
+              <option v-if="auth.user?.role === 'ADMIN'" value="ADMIN">Admin</option>
+            </select>
+          </div>
+
+          <!-- Location field — only shown when role is MANAGER -->
+          <div v-if="createForm.role === 'MANAGER'"
+            class="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-2">
+            <p class="text-xs font-medium text-amber-800 flex items-center gap-1.5">
+              <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/>
+              </svg>
+              Managers require a location
+            </p>
+            <input v-model="createForm.locationName" type="text" placeholder="e.g. LCF Cypress"
+              class="w-full border border-amber-200 bg-white rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-amber-400 focus:border-amber-400 focus:outline-none" />
+            <p class="text-xs text-amber-600">A new location will be created and assigned to this manager.</p>
+          </div>
+        </div>
+
+        <p v-if="createError" class="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2 border border-red-200">{{ createError }}</p>
+
+        <p class="text-xs text-gray-400 bg-gray-50 rounded-lg px-3 py-2">
+          A temporary password will be generated automatically and shown after creation.
+        </p>
+
+        <div class="flex justify-end gap-3 pt-1">
+          <button class="text-sm text-gray-500 hover:text-gray-800 px-4 py-2 rounded-lg border border-gray-200 transition-colors"
+            @click="createModal = false">Cancel</button>
+          <button
+            class="text-sm bg-brand-600 text-white px-4 py-2 rounded-lg hover:bg-brand-700 transition-colors disabled:opacity-50"
+            :disabled="creating || !createForm.name || !createForm.email || (createForm.role === 'MANAGER' && !createForm.locationName)"
+            @click="doCreateUser">
+            {{ creating ? 'Creating…' : 'Create User' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Create User Result Modal ──────────────────────────────────── -->
+    <div v-if="createResultModal" class="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6 space-y-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
+            <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-lg font-bold text-gray-900">User Created</h3>
+            <p class="text-sm text-gray-500">{{ createdUser?.name }} ({{ createdUser?.role }})</p>
+          </div>
+        </div>
+        <div v-if="createdLocation" class="flex items-center gap-2 text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2 border border-green-200">
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/>
+          </svg>
+          Location <strong>{{ createdLocation.name }}</strong> created and assigned
+        </div>
+        <div>
+          <p class="text-xs text-gray-500 mb-1">Temporary password — share this with the user:</p>
+          <div class="bg-gray-50 rounded-lg border border-gray-200 p-4 text-center">
+            <p class="text-2xl font-mono font-bold tracking-widest text-gray-900 select-all">{{ createdTempPassword }}</p>
+          </div>
+        </div>
+        <p class="text-xs text-amber-600 bg-amber-50 rounded-lg p-3 border border-amber-200">
+          ⚠️ This password will not be shown again. Copy it now.
+        </p>
+        <div class="flex justify-end gap-3 pt-1">
+          <button class="text-sm text-gray-500 hover:text-gray-800 px-4 py-2 rounded-lg border border-gray-200 transition-colors"
+            @click="copyCreatedPassword">{{ createdCopied ? '✓ Copied' : 'Copy' }}</button>
+          <button class="text-sm bg-brand-600 text-white px-4 py-2 rounded-lg hover:bg-brand-700 transition-colors"
+            @click="createResultModal = false">Done</button>
+        </div>
+      </div>
+    </div>
+
     <!-- ── Role change confirm ───────────────────────────────────────── -->
     <ConfirmDialog
       v-model="roleModal"
@@ -228,6 +335,57 @@ function initials(name) {
 function formatDate(d) {
   if (!d) return '—'
   return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+// ── Create user ──────────────────────────────────────────────────────────────
+const createModal = ref(false)
+const createResultModal = ref(false)
+const creating = ref(false)
+const createError = ref('')
+const createdUser = ref(null)
+const createdLocation = ref(null)
+const createdTempPassword = ref('')
+const createdCopied = ref(false)
+
+const createForm = ref({ name: '', email: '', role: 'HR', locationName: '' })
+
+function openCreateUser() {
+  createForm.value = { name: '', email: '', role: 'HR', locationName: '' }
+  createError.value = ''
+  createModal.value = true
+}
+
+async function doCreateUser() {
+  createError.value = ''
+  creating.value = true
+  try {
+    const payload = {
+      name: createForm.value.name,
+      email: createForm.value.email,
+      role: createForm.value.role,
+      ...(createForm.value.role === 'MANAGER' && createForm.value.locationName
+        ? { locationName: createForm.value.locationName } : {}),
+    }
+    const { data } = await usersApi.create(payload)
+    users.value.unshift(data.user)
+    createdUser.value = data.user
+    createdLocation.value = data.location || null
+    createdTempPassword.value = data.tempPassword
+    createdCopied.value = false
+    createModal.value = false
+    createResultModal.value = true
+  } catch (err) {
+    createError.value = err.response?.data?.error || 'Failed to create user'
+  } finally {
+    creating.value = false
+  }
+}
+
+function copyCreatedPassword() {
+  navigator.clipboard.writeText(createdTempPassword.value).then(() => {
+    createdCopied.value = true
+    setTimeout(() => { createdCopied.value = false }, 2000)
+  })
 }
 
 // ── Role change ──────────────────────────────────────────────────────────────
