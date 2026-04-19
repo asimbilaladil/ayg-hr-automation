@@ -10,6 +10,11 @@ const UpdateEmailSchema = z.object({
   email: z.string().email(),
 });
 
+const ChangePasswordSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: z.string().min(8, 'New password must be at least 8 characters'),
+});
+
 export async function list(req: Request, res: Response, next: NextFunction) {
   try {
     const users = await service.listUsers();
@@ -51,6 +56,26 @@ export async function resetPassword(req: Request, res: Response, next: NextFunct
     const result = await service.resetUserPassword(req.params.id);
     res.json(result);
   } catch (err) { next(err); }
+}
+
+export async function changePassword(req: Request, res: Response, next: NextFunction) {
+  try {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    const { currentPassword, newPassword } = ChangePasswordSchema.parse(req.body);
+    await service.changeUserPassword(req.user.id, currentPassword, newPassword);
+    res.json({ success: true });
+  } catch (err: any) {
+    if (err.message === 'WRONG_PASSWORD') {
+      return res.status(400).json({ error: 'Current password is incorrect' });
+    }
+    if (err.message === 'TOO_SHORT') {
+      return res.status(400).json({ error: 'New password must be at least 8 characters' });
+    }
+    if (err.message === 'NO_PASSWORD') {
+      return res.status(400).json({ error: 'No password set on this account' });
+    }
+    next(err);
+  }
 }
 
 export async function deactivate(req: Request, res: Response, next: NextFunction) {

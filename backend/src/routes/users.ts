@@ -6,6 +6,7 @@ import * as ctrl from '../controllers/users.controller';
 const router = Router();
 
 router.get('/me', auth, ctrl.me);
+router.post('/me/change-password', auth, ctrl.changePassword);  // any logged-in user
 router.get('/', auth, rbac('ADMIN'), ctrl.list);
 router.patch('/:id/role', auth, rbac('ADMIN'), ctrl.updateRole);
 router.patch('/:id/deactivate', auth, rbac('ADMIN'), ctrl.deactivate);

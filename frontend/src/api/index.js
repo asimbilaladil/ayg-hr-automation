@@ -73,6 +73,8 @@ export const usersApi = {
   deactivate: (id) => api.patch(`/api/users/${id}/deactivate`),
   updateEmail: (id, email) => api.patch(`/api/users/${id}/email`, { email }),
   resetPassword: (id) => api.post(`/api/users/${id}/reset-password`),
+  changePassword: (currentPassword, newPassword) =>
+    api.post('/api/users/me/change-password', { currentPassword, newPassword }),
 }
 
 export default api

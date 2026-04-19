@@ -47,6 +47,25 @@ export async function updateUserEmail(id: string, email: string) {
   });
 }
 
+/** Self-service password change — verifies currentPassword before updating. */
+export async function changeUserPassword(
+  id: string,
+  currentPassword: string,
+  newPassword: string,
+): Promise<void> {
+  const user = await prisma.user.findUnique({ where: { id } });
+  if (!user) throw new Error('NOT_FOUND');
+  if (!user.passwordHash) throw new Error('NO_PASSWORD');
+
+  const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+  if (!valid) throw new Error('WRONG_PASSWORD');
+
+  if (newPassword.length < 8) throw new Error('TOO_SHORT');
+
+  const passwordHash = await bcrypt.hash(newPassword, 12);
+  await prisma.user.update({ where: { id }, data: { passwordHash } });
+}
+
 /** Generates a random temporary password, hashes + stores it, and returns it in plaintext
  *  so an admin can share it with the user via another channel. */
 export async function resetUserPassword(id: string): Promise<{ tempPassword: string }> {
