@@ -194,11 +194,6 @@
                   <option v-for="s in STATUSES" :key="s" :value="s">{{ capitalize(s) }}</option>
                 </select>
               </div>
-              <div class="col-span-2">
-                <label class="label">Resume URL</label>
-                <input v-model="editForm.resumeUrl" class="input" type="url" placeholder="https://…" disabled />
-                <p class="text-xs text-gray-400 mt-1">Resume URL is managed automatically</p>
-              </div>
             </div>
 
             <div v-if="editError" class="bg-red-50 border border-red-200 rounded-lg px-4 py-2 text-sm text-red-700">
@@ -221,16 +216,70 @@
         </div>
 
         <!-- Transcript Tab -->
-        <div v-if="activeTab === 'transcript'" class="p-6">
-          <div v-if="candidate?.transcript">
-            <h4 class="text-sm font-semibold text-gray-700 mb-3">Call Transcript</h4>
-            <div class="bg-gray-50 rounded-lg p-4 text-sm text-gray-700 leading-relaxed whitespace-pre-wrap font-mono text-xs">{{ candidate.transcript }}</div>
+        <div v-if="activeTab === 'transcript'" class="flex flex-col h-full">
+          <!-- Audio Player -->
+          <div v-if="candidate?.recordingUrl" class="mx-6 mt-5 mb-1 bg-gradient-to-r from-brand-50 to-blue-50 border border-brand-200 rounded-xl p-4">
+            <div class="flex items-center gap-3 mb-3">
+              <div class="w-8 h-8 rounded-full bg-brand-600 flex items-center justify-center flex-shrink-0">
+                <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+                </svg>
+              </div>
+              <div>
+                <p class="text-sm font-semibold text-gray-800">Call Recording</p>
+                <p class="text-xs text-gray-500">AI screening call</p>
+              </div>
+              <a :href="candidate.recordingUrl" target="_blank" rel="noopener noreferrer"
+                class="ml-auto p-1.5 rounded-lg hover:bg-brand-100 text-brand-500 hover:text-brand-700 transition-colors"
+                title="Download recording">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+              </a>
+            </div>
+            <audio :src="candidate.recordingUrl" controls class="w-full h-9" style="outline:none;" />
           </div>
-          <div v-else class="text-center py-12 text-gray-400">
+
+          <!-- Chat transcript -->
+          <div v-if="candidate?.transcript" class="flex-1 overflow-y-auto px-6 py-4 space-y-3">
+            <template v-for="(msg, i) in parsedTranscript" :key="i">
+              <!-- AI message -->
+              <div v-if="msg.role === 'ai'" class="flex items-start gap-2.5">
+                <div class="w-7 h-7 rounded-full bg-brand-600 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <svg class="w-3.5 h-3.5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
+                  </svg>
+                </div>
+                <div class="max-w-[78%]">
+                  <p class="text-[10px] font-semibold text-brand-600 mb-1 ml-1">AI Assistant</p>
+                  <div class="bg-white border border-gray-200 rounded-2xl rounded-tl-sm px-3.5 py-2.5 shadow-sm">
+                    <p class="text-sm text-gray-800 leading-relaxed">{{ msg.text }}</p>
+                  </div>
+                </div>
+              </div>
+              <!-- User message -->
+              <div v-else class="flex items-start gap-2.5 justify-end">
+                <div class="max-w-[78%]">
+                  <p class="text-[10px] font-semibold text-gray-500 mb-1 mr-1 text-right">Candidate</p>
+                  <div class="bg-brand-600 rounded-2xl rounded-tr-sm px-3.5 py-2.5 shadow-sm">
+                    <p class="text-sm text-white leading-relaxed">{{ msg.text }}</p>
+                  </div>
+                </div>
+                <div class="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <span class="text-xs font-bold text-gray-600">{{ initials }}</span>
+                </div>
+              </div>
+            </template>
+          </div>
+
+          <div v-else-if="!candidate?.recordingUrl" class="text-center py-12 text-gray-400">
             <svg class="w-8 h-8 mx-auto mb-2 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
             </svg>
-            No transcript available
+            <p class="text-sm">No call data available</p>
+          </div>
+          <div v-else-if="candidate?.recordingUrl && !candidate?.transcript" class="text-center py-8 text-gray-400">
+            <p class="text-sm">Recording available but transcript not yet processed</p>
           </div>
         </div>
       </div>
@@ -366,6 +415,18 @@ watch(() => props.candidate, async (c) => {
 const initials = computed(() => {
   const name = props.candidate?.candidateName || ''
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+})
+
+const parsedTranscript = computed(() => {
+  const raw = props.candidate?.transcript || ''
+  if (!raw) return []
+  const lines = raw.split('\n').filter(l => l.trim())
+  return lines.map(line => {
+    if (/^AI:/i.test(line)) return { role: 'ai', text: line.replace(/^AI:\s*/i, '').trim() }
+    if (/^User:/i.test(line)) return { role: 'user', text: line.replace(/^User:\s*/i, '').trim() }
+    // continuation line — attach to last message type or default to ai
+    return { role: 'ai', text: line.trim() }
+  }).filter(m => m.text)
 })
 
 const hasResume = computed(() => !!props.candidate?.emailId)
