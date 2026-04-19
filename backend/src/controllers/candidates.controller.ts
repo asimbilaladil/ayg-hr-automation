@@ -8,6 +8,14 @@ import {
   CandidateQuerySchema,
 } from '../schemas/candidate.schema';
 
+/**
+ * Google Sheets stores formula-cell values with a leading "=" sign.
+ * Strip it so the emailId lookup doesn't fail.
+ */
+function sanitizeEmailId(raw: string): string {
+  return raw.startsWith('=') ? raw.slice(1) : raw;
+}
+
 export async function list(req: Request, res: Response, next: NextFunction) {
   try {
     const query = CandidateQuerySchema.parse(req.query);
@@ -28,7 +36,8 @@ export async function getById(req: Request, res: Response, next: NextFunction) {
 
 export async function getByEmailId(req: Request, res: Response, next: NextFunction) {
   try {
-    const candidate = await service.getCandidateByEmailId(req.params.emailId);
+    const emailId = sanitizeEmailId(req.params.emailId);
+    const candidate = await service.getCandidateByEmailId(emailId);
     res.json(candidate);
   } catch (err) { next(err); }
 }
@@ -43,16 +52,18 @@ export async function create(req: Request, res: Response, next: NextFunction) {
 
 export async function updateAIReview(req: Request, res: Response, next: NextFunction) {
   try {
+    const emailId = sanitizeEmailId(req.params.emailId);
     const data = UpdateAIReviewSchema.parse(req.body);
-    const candidate = await service.updateAIReview(req.params.emailId, data);
+    const candidate = await service.updateAIReview(emailId, data);
     res.json(candidate);
   } catch (err) { next(err); }
 }
 
 export async function updateCallResult(req: Request, res: Response, next: NextFunction) {
   try {
+    const emailId = sanitizeEmailId(req.params.emailId);
     const data = UpdateCallResultSchema.parse(req.body);
-    const candidate = await service.updateCallResult(req.params.emailId, data);
+    const candidate = await service.updateCallResult(emailId, data);
     res.json(candidate);
   } catch (err) { next(err); }
 }
@@ -81,7 +92,7 @@ export async function resetProblematic(req: Request, res: Response, next: NextFu
 
 export async function updateStatus(req: Request, res: Response, next: NextFunction) {
   try {
-    const { emailId } = req.params;
+    const emailId = sanitizeEmailId(req.params.emailId);
     const { status } = req.body;
 
     const candidate = await service.updateCandidateStatus(emailId, {
