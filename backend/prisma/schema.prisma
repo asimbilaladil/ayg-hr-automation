@@ -70,8 +70,9 @@ model Candidate {
   aiCriteriaMissing String?
   aiSummary         String?
 
-  // Call transcript (populated by n8n after Vapi call)
+  // Call transcript + recording (populated by n8n after Vapi call)
   transcript        String?
+  recordingUrl      String?
 
   posting_rel     Posting  @relation(fields: [postingId], references: [id])
   postingId       String

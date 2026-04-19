@@ -364,7 +364,7 @@ export async function updateAIReview(emailId: string, data: any) {
     where: { emailId },
     data: {
       status:            data.status            || 'reviewed',
-      ...(data.aiScore           != null && { aiScore:           data.aiScore }),
+      ...(data.aiScore != null && data.aiScore > 0 && { aiScore: data.aiScore }),
       ...(data.aiRecommendation  != null && { aiRecommendation:  data.aiRecommendation }),
       ...(data.aiCriteriaMet     != null && { aiCriteriaMet:     data.aiCriteriaMet }),
       ...(data.aiCriteriaMissing != null && { aiCriteriaMissing: data.aiCriteriaMissing }),
@@ -389,7 +389,8 @@ export async function updateCallResult(emailId: string, data: any) {
     where: { emailId },
     data: {
       status:     data.status     || 'called',
-      ...(data.transcript != null && { transcript: data.transcript }),
+      ...(data.transcript   != null && { transcript:   data.transcript }),
+      ...(data.recordingUrl != null && { recordingUrl: data.recordingUrl }),
     },
     include: {
       posting_rel: true,

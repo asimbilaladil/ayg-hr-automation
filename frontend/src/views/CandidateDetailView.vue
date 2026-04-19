@@ -131,6 +131,33 @@
         </div>
       </div>
 
+      <!-- Call Recording -->
+      <div v-if="candidate.recordingUrl" class="card p-5">
+        <h3 class="font-semibold text-gray-900 mb-4">Call Recording</h3>
+        <div class="flex items-center gap-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+          <svg class="w-8 h-8 text-brand-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+          </svg>
+          <audio
+            :src="candidate.recordingUrl"
+            controls
+            class="w-full h-10"
+            style="outline: none;"
+          />
+        </div>
+        <a
+          :href="candidate.recordingUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="inline-flex items-center gap-1.5 text-xs text-brand-600 hover:text-brand-700 mt-2"
+        >
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+          Download recording
+        </a>
+      </div>
+
       <!-- Transcript -->
       <div v-if="candidate.transcript" class="card p-5">
         <h3 class="font-semibold text-gray-900 mb-4">Call Transcript</h3>

@@ -26,9 +26,10 @@ export const UpdateAIReviewSchema = z.object({
 });
 
 export const UpdateCallResultSchema = z.object({
-  transcript: z.string().optional(),
-  called: z.string().optional(),
-  status: z.string().optional(),
+  transcript:   z.string().optional(),
+  recordingUrl: z.string().url().optional(),
+  called:       z.string().optional(),
+  status:       z.string().optional(),
 });
 
 export const UpdateCandidateSchema = z.object({
