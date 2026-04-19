@@ -23,12 +23,15 @@ module.exports = {
     {
       name: 'hr-frontend',
       script: 'serve',
-      args: '-s dist -l 3000',
+      args: '-s dist --listen 3000',
       cwd: '/root/ayg-hr-automation/frontend',
       interpreter: 'none',
       autorestart: true,
       watch: false,
       max_memory_restart: '128M',
+      env: {
+        NODE_ENV: 'production',
+      },
       error_file: 'logs/err.log',
       out_file: 'logs/out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
