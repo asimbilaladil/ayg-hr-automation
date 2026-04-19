@@ -220,16 +220,13 @@ export async function getAvailabilitySlots(query: SlotsQuery & { limit?: number 
       locationId: locationRecord.id,
       interviewDate: { gte: dateStart, lte: dateEnd },
     },
-    include: { manager_rel: true },
   });
 
-  // Key format: "<managerEmail>__<HH:MM>" or "ANY__<HH:MM>" for unassigned
-  const bookedSlots = new Set(
+  // Key: "<managerId>__<HH:MM>" — uses stable ID, not email
+  const bookedSet = new Set(
     booked.map((a: any) => {
-      const normalizedTime = normalize12HourTo24Hour(a.startTime);
-      return a.manager_rel?.email
-        ? `${a.manager_rel.email}__${normalizedTime}`
-        : `ANY__${normalizedTime}`;
+      const t = normalize12HourTo24Hour(a.startTime);
+      return a.managerId ? `${a.managerId}__${t}` : `ANY__${t}`;
     })
   );
 
@@ -242,13 +239,12 @@ export async function getAvailabilitySlots(query: SlotsQuery & { limit?: number 
     const duration     = parseDuration(window.slotDuration || '15 Min');
 
     for (let t = startMinutes; t + duration <= endMinutes; t += duration) {
-      const slotStart = minutesToTime(t);
-      const slotEnd   = minutesToTime(t + duration);
+      const slotStart     = minutesToTime(t);
+      const slotEnd       = minutesToTime(t + duration);
+      const managerKey    = `${window.managerId}__${slotStart}`;
+      const anyKey        = `ANY__${slotStart}`;
 
-      const managerKey    = `${window.manager_rel!.email}__${slotStart}`;
-      const anyManagerKey = `ANY__${slotStart}`;
-
-      if (!bookedSlots.has(managerKey) && !bookedSlots.has(anyManagerKey)) {
+      if (!bookedSet.has(managerKey) && !bookedSet.has(anyKey)) {
         slots.push({
           date,
           day:          dayOfWeek,
@@ -316,13 +312,12 @@ export async function getSuggestedSlots(input: {
         locationId: locationRecord.id,
         interviewDate: { gte: dateStart, lte: dateEnd },
       },
-      include: { manager_rel: true },
     });
 
     const bookedSet = new Set(
       booked.map((a: any) => {
         const t = normalize12HourTo24Hour(a.startTime);
-        return a.manager_rel?.email ? `${a.manager_rel.email}__${t}` : `ANY__${t}`;
+        return a.managerId ? `${a.managerId}__${t}` : `ANY__${t}`;
       })
     );
 
@@ -335,10 +330,9 @@ export async function getSuggestedSlots(input: {
       const duration  = parseDuration(window.slotDuration || '15 Min');
 
       for (let t = startMins; t + duration <= endMins; t += duration) {
-        const slotStart = minutesToTime(t);
-        const slotEnd   = minutesToTime(t + duration);
-
-        const managerKey = `${window.manager_rel!.email}__${slotStart}`;
+        const slotStart  = minutesToTime(t);
+        const slotEnd    = minutesToTime(t + duration);
+        const managerKey = `${window.managerId}__${slotStart}`;
         const anyKey     = `ANY__${slotStart}`;
 
         if (!bookedSet.has(managerKey) && !bookedSet.has(anyKey)) {
@@ -427,7 +421,7 @@ export async function validateSlot(input: any) {
   const bookedSet = new Set(
     booked.map((a: any) => {
       const t = normalize12HourTo24Hour(a.startTime);
-      return a.manager_rel?.email ? `${a.manager_rel.email}__${t}` : `ANY__${t}`;
+      return a.managerId ? `${a.managerId}__${t}` : `ANY__${t}`;
     })
   );
 
@@ -442,10 +436,10 @@ export async function validateSlot(input: any) {
     const duration  = parseDuration(window.slotDuration || '15 Min');
 
     for (let t = startMins; t + duration <= endMins; t += duration) {
-      const slotStart   = minutesToTime(t);
-      const slotEnd     = minutesToTime(t + duration);
-      const managerKey  = `${window.manager_rel!.email}__${slotStart}`;
-      const anyKey      = `ANY__${slotStart}`;
+      const slotStart  = minutesToTime(t);
+      const slotEnd    = minutesToTime(t + duration);
+      const managerKey = `${window.managerId}__${slotStart}`;
+      const anyKey     = `ANY__${slotStart}`;
 
       if (!bookedSet.has(managerKey) && !bookedSet.has(anyKey)) {
         allFreeSlots.push({
