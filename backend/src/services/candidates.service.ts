@@ -388,9 +388,10 @@ export async function updateAIReview(emailId: string, data: any) {
 function resolveCallStatus(raw?: string): string {
   if (!raw) return 'called';
   const s = raw.toLowerCase().trim();
-  if (s === 'ended' || s === 'completed') return 'called';
-  if (s === 'no-answer' || s === 'busy' || s === 'failed') return 'pending';
-  return s; // pass through any other value unchanged
+  if (s === 'ended' || s === 'completed') return 'interview-booked'; // call ended = AI booked in-person interview
+  if (s === 'no-answer' || s === 'busy')  return 'no-answer';        // retry next day
+  if (s === 'failed')                     return 'processed';
+  return s;
 }
 
 export async function updateCallResult(emailId: string, data: any) {

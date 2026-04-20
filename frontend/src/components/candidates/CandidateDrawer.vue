@@ -332,7 +332,7 @@ const tabs = [
   { id: 'transcript', label: 'Transcript' },
 ]
 
-const STATUSES = ['pending', 'reviewing', 'reviewed', 'called', 'scheduled', 'rejected', 'hired', 'processed']
+const STATUSES = ['pending', 'reviewing', 'reviewed', 'called', 'no-answer', 'interview-booked', 'scheduled', 'rejected', 'hired', 'processed']
 
 // Declare refs FIRST before using them in watchers
 const editForm = reactive({

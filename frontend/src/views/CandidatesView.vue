@@ -219,7 +219,7 @@ const total = ref(0)
 const page = ref(1)
 const limit = 20
 
-const STATUSES = ['pending', 'reviewing', 'reviewed', 'called', 'scheduled', 'rejected', 'hired']
+const STATUSES = ['pending', 'reviewing', 'reviewed', 'called', 'no-answer', 'interview-booked', 'scheduled', 'rejected', 'hired']
 
 const filters = reactive({
   search: '',
