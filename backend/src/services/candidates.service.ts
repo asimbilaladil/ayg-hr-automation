@@ -399,8 +399,9 @@ export async function updateCallResult(emailId: string, data: any) {
     where: { emailId },
     data: {
       status:     resolveCallStatus(data.status),
-      ...(data.transcript   != null && { transcript:   data.transcript }),
-      ...(data.recordingUrl != null && { recordingUrl: data.recordingUrl }),
+      ...(data.transcript        != null && { transcript:        data.transcript }),
+      ...(data.recordingUrl      != null && { recordingUrl:      data.recordingUrl }),
+      ...(data.interviewAnswers  != null && { interviewAnswers:  data.interviewAnswers }),
     },
     include: {
       posting_rel: true,
@@ -442,8 +443,9 @@ export async function updateCallResultById(id: string, data: any) {
     where: { id },
     data: {
       status:     resolveCallStatus(data.status),
-      ...(data.transcript   != null && { transcript:   data.transcript }),
-      ...(data.recordingUrl != null && { recordingUrl: data.recordingUrl }),
+      ...(data.transcript        != null && { transcript:        data.transcript }),
+      ...(data.recordingUrl      != null && { recordingUrl:      data.recordingUrl }),
+      ...(data.interviewAnswers  != null && { interviewAnswers:  data.interviewAnswers }),
     },
     include: {
       posting_rel: true,

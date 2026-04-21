@@ -74,6 +74,9 @@ model Candidate {
   transcript        String?
   recordingUrl      String?
 
+  // Interview answers as JSON array [{question, category, answer}]
+  interviewAnswers  String?
+
   posting_rel     Posting  @relation(fields: [postingId], references: [id])
   postingId       String
 
