@@ -144,6 +144,38 @@
             </button>
             <p v-if="resumeError" class="mt-2 text-xs text-red-500">{{ resumeError }}</p>
           </div>
+
+          <!-- Interview Q&A -->
+          <div v-if="parsedInterviewAnswers.length" class="border-t border-gray-200 pt-4">
+            <h4 class="text-sm font-semibold text-gray-700 mb-3">
+              <span class="inline-flex items-center gap-1.5">
+                <svg class="w-4 h-4 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3-3-3z" />
+                </svg>
+                Interview Answers
+              </span>
+            </h4>
+            <div class="space-y-3">
+              <div
+                v-for="(qa, idx) in parsedInterviewAnswers"
+                :key="idx"
+                class="rounded-lg border border-gray-100 overflow-hidden"
+              >
+                <!-- Question header -->
+                <div class="bg-gray-50 px-3 py-2 flex items-start gap-2">
+                  <span class="text-xs font-bold text-brand-600 bg-brand-50 rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0 mt-0.5">{{ idx + 1 }}</span>
+                  <div>
+                    <span class="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">{{ qa.category }}</span>
+                    <p class="text-xs font-medium text-gray-700 mt-0.5">{{ qa.question }}</p>
+                  </div>
+                </div>
+                <!-- Answer -->
+                <div class="px-3 py-2.5 bg-white">
+                  <p class="text-sm text-gray-800 leading-relaxed">{{ qa.answer }}</p>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Edit Tab -->
@@ -430,6 +462,17 @@ const parsedTranscript = computed(() => {
 })
 
 const hasResume = computed(() => !!props.candidate?.emailId)
+
+const parsedInterviewAnswers = computed(() => {
+  try {
+    const raw = props.candidate?.interviewAnswers
+    if (!raw) return []
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
+    return Array.isArray(parsed) ? parsed.filter(q => q.answer) : []
+  } catch {
+    return []
+  }
+})
 const resumeLoading = ref(false)
 const resumeError = ref('')
 
