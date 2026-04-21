@@ -51,7 +51,7 @@ const routes = [
         path: 'users',
         name: 'Users',
         component: () => import('@/views/UsersView.vue'),
-        meta: { requiresAuth: true, requiresAdmin: true }
+        meta: { requiresAuth: true, requiresAdminOrHR: true }
       }
     ]
   },
@@ -78,7 +78,7 @@ router.beforeEach((to, _from, next) => {
     return next('/login')
   }
 
-  if (to.meta.requiresAdmin && !auth.isAdmin) {
+  if (to.meta.requiresAdminOrHR && !auth.isAdmin && auth.user?.role !== 'HR') {
     return next('/dashboard')
   }
 
