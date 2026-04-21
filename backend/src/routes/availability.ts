@@ -15,10 +15,10 @@ router.get('/', auth, rbac('HR'), ctrl.list);
 router.get('/managers/list', auth, rbac('HR'), ctrl.getAllManagers);
 router.get('/managers/:managerId/locations', auth, rbac('HR'), ctrl.getManagerLocations);
 router.get('/locations/list', auth, rbac('HR'), ctrl.getAllLocations);
-router.get('/:id', auth, rbac('MANAGER'), ctrl.getById);
-router.post('/', auth, rbac('MANAGER'), ctrl.create);
-router.patch('/:id', auth, rbac('MANAGER'), ctrl.update);
-router.delete('/:id', auth, rbac('MANAGER'), ctrl.remove);
+router.get('/:id', auth, rbac('HR'), ctrl.getById);
+router.post('/', auth, rbac('HR'), ctrl.create);
+router.patch('/:id', auth, rbac('HR'), ctrl.update);
+router.delete('/:id', auth, rbac('HR'), ctrl.remove);
 
 
 export default router;

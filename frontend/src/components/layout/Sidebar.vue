@@ -104,7 +104,7 @@ const navItems = computed(() => {
     { to: '/appointments', label: 'Appointments', icon: AppointmentIcon },
     { to: '/availability', label: 'Availability', icon: AvailabilityIcon },
   ]
-  if (auth.isAdmin) {
+  if (auth.isAdmin || auth.user?.role === 'HR') {
     items.push({ to: '/users', label: 'Users', icon: UserIcon })
   }
   return items

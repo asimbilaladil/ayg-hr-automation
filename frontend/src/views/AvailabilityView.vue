@@ -6,7 +6,7 @@
         <h2 class="text-xl font-bold text-gray-900">Availability</h2>
         <p class="text-sm text-gray-500 mt-0.5">Manager interview availability slots</p>
       </div>
-      <button v-if="auth.isManager" class="btn-primary" @click="openCreate">
+      <button v-if="auth.isHR" class="btn-primary" @click="openCreate">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
         </svg>
@@ -42,7 +42,7 @@
               <th class="text-left px-4 py-3 font-semibold text-gray-600">Time</th>
               <th class="text-left px-4 py-3 font-semibold text-gray-600">Slot Duration</th>
               <th class="text-left px-4 py-3 font-semibold text-gray-600">Status</th>
-              <th v-if="auth.isManager" class="px-4 py-3"></th>
+              <th v-if="auth.isHR" class="px-4 py-3"></th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100">
@@ -77,7 +77,7 @@
               <td class="px-4 py-3">
                 <StatusBadge :status="s.active ? 'active' : 'inactive'" />
               </td>
-              <td v-if="auth.isManager" class="px-4 py-3">
+              <td v-if="auth.isHR" class="px-4 py-3">
                 <div class="flex items-center gap-2">
                   <button
                     class="text-xs text-gray-500 hover:text-brand-600 border border-gray-200 hover:border-brand-300 px-2 py-1 rounded transition-colors"
