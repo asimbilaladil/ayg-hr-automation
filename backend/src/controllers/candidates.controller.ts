@@ -42,6 +42,24 @@ export async function getByEmailId(req: Request, res: Response, next: NextFuncti
   } catch (err) { next(err); }
 }
 
+export async function getByPhone(req: Request, res: Response, next: NextFunction) {
+  try {
+    const phone = req.params.phone || (req.query.phone as string);
+    if (!phone) {
+      res.status(400).json({ error: 'phone parameter is required' });
+      return;
+    }
+    const candidate = await service.getCandidateByPhone(phone);
+    res.json({ found: true, candidate });
+  } catch (err: any) {
+    if (err.message === 'NOT_FOUND') {
+      res.status(404).json({ found: false, candidate: null, message: 'No candidate found with this phone number' });
+      return;
+    }
+    next(err);
+  }
+}
+
 export async function create(req: Request, res: Response, next: NextFunction) {
   try {
     const data = CreateCandidateSchema.parse(req.body);

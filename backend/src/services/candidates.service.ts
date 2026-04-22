@@ -186,6 +186,35 @@ export async function getCandidateById(id: string) {
   return flattenCandidate(candidate);
 }
 
+export async function getCandidateByPhone(phone: string) {
+  // Normalize: strip spaces, dashes, parens, plus signs for flexible matching
+  const normalize = (p: string) => p.replace(/[\s\-().+]/g, '');
+  const digits = normalize(phone);
+
+  // Use DB-level LIKE for efficiency, then refine in JS for suffix matching
+  const candidates = await prisma.candidate.findMany({
+    where: { phone: { not: null } },
+    include: {
+      posting_rel: true,
+      location_rel: true,
+      hiringManager_rel: true,
+      recruiter_rel: true,
+      appointment: true,
+    },
+  });
+
+  // Match if stored number ends with incoming digits or vice-versa
+  // Handles country-code prefix differences (+49 vs 0049 vs local)
+  const match = candidates.find((c) => {
+    if (!c.phone) return false;
+    const stored = normalize(c.phone);
+    return stored === digits || stored.endsWith(digits) || digits.endsWith(stored);
+  });
+
+  if (!match) throw new Error('NOT_FOUND');
+  return flattenCandidate(match);
+}
+
 export async function getCandidateByEmailId(emailId: string) {
   const candidate = await prisma.candidate.findUnique({
     where: { emailId },

@@ -7,6 +7,7 @@ const router = Router();
 
 // n8n endpoints (API key only)
 router.get('/by-email/:emailId', apiKeyAuth, ctrl.getByEmailId);
+router.get('/by-phone/:phone', apiKeyAuth, ctrl.getByPhone);     // inbound call lookup
 router.post('/', apiKeyAuth, ctrl.create);
 router.patch('/:emailId/ai-review', apiKeyAuth, ctrl.updateAIReview);
 router.patch('/:emailId/call-result', apiKeyAuth, ctrl.updateCallResult);
