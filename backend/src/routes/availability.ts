@@ -7,8 +7,9 @@ const router = Router();
 
 // n8n / Vapi slot lookup
 router.get('/slots', apiKeyAuth, ctrl.getSlots);
-router.get('/suggestions',apiKeyAuth, ctrl.getSuggestions);
-router.get('/validate',apiKeyAuth, ctrl.validateSlot);
+router.get('/suggestions', apiKeyAuth, ctrl.getSuggestions);
+router.get('/suggestions/by-time', apiKeyAuth, ctrl.getSuggestionsByTime);
+router.get('/validate', apiKeyAuth, ctrl.validateSlot);
 
 // Frontend endpoints
 router.get('/', auth, rbac('HR'), ctrl.list);

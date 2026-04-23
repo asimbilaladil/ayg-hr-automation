@@ -535,6 +535,150 @@ export async function deleteAvailability(id: string) {
   return prisma.managerAvailability.delete({ where: { id } });
 }
 
+/**
+ * getSuggestedSlotsByTime — returns availability suggestions across the next 7 days,
+ * filtered to only slots that start at or after a given time-of-day.
+ *
+ * Use case: candidate says "do you have anything after 4:00 PM?"
+ *
+ * Input:
+ *   afterTime  — 24-hour string like "16:00" (required)
+ *   locationId — optional; if omitted, searches ALL active locations
+ *   days       — array of { date, dayOfWeek } to search (defaults to next 7 days in controller)
+ *
+ * Rules (same as getSuggestedSlots):
+ *   • Collect every day that has at least one free slot AFTER the requested time.
+ *   • If only 1 day has slots  → return up to 3 slots from that day.
+ *   • If 2–3 days have slots   → return 1 slot per day (max 3 days total).
+ *   • If 3+ days have slots    → return 1 slot per day, capped at 3 days.
+ */
+export async function getSuggestedSlotsByTime(input: {
+  afterTime: string;
+  locationId?: string;
+  days: Array<{ date: string; dayOfWeek: string }>;
+}) {
+  const { afterTime, locationId, days } = input;
+
+  const afterMinutes = timeToMinutes(afterTime);
+
+  // ── Resolve location(s) ──────────────────────────────────────────────────
+  let locationIds: string[];
+  let locationNameMap: Record<string, string> = {};
+
+  if (locationId) {
+    const loc = await resolveLocation(locationId);
+    if (!loc) {
+      console.warn(`getSuggestedSlotsByTime: cannot resolve location from "${locationId}"`);
+      return { slots: [], daysWithSlots: 0 };
+    }
+    locationIds = [loc.id];
+    locationNameMap[loc.id] = loc.name;
+  } else {
+    // No location specified — search all active locations
+    const allLocations = await prisma.location.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true },
+    });
+    locationIds = allLocations.map((l) => l.id);
+    for (const l of allLocations) locationNameMap[l.id] = l.name;
+  }
+
+  // ── Collect slots grouped by day (across all locations) ──────────────────
+  const slotsByDay: Array<{ date: string; dayOfWeek: string; slots: any[] }> = [];
+
+  for (const { date, dayOfWeek } of days) {
+    const daySlots: any[] = [];
+
+    for (const locId of locationIds) {
+      // Fetch availability windows for this location + day
+      const windows = await prisma.managerAvailability.findMany({
+        where: {
+          locationId: locId,
+          dayOfWeek: { equals: dayOfWeek, mode: 'insensitive' },
+          active: true,
+        },
+        include: { location_rel: true, manager_rel: true },
+      });
+
+      if (!windows.length) continue;
+
+      // Fetch booked appointments for this location on this date
+      const dateStart = new Date(`${date}T00:00:00`);
+      const dateEnd   = new Date(`${date}T23:59:59`);
+
+      const booked = await prisma.appointment.findMany({
+        where: {
+          locationId: locId,
+          interviewDate: { gte: dateStart, lte: dateEnd },
+        },
+      });
+
+      const bookedSet = new Set(
+        booked.map((a: any) => {
+          const t = normalize12HourTo24Hour(a.startTime);
+          return a.managerId ? `${a.managerId}__${t}` : `ANY__${t}`;
+        })
+      );
+
+      // Generate free slots that start AT or AFTER the requested time
+      for (const window of windows) {
+        const startMins = timeToMinutes(window.startTime);
+        const endMins   = timeToMinutes(window.endTime);
+        const duration  = parseDuration(window.slotDuration || '15 Min');
+
+        for (let t = startMins; t + duration <= endMins; t += duration) {
+          // Skip slots that start before the requested time
+          if (t < afterMinutes) continue;
+
+          const slotStart  = minutesToTime(t);
+          const slotEnd    = minutesToTime(t + duration);
+          const managerKey = `${window.managerId}__${slotStart}`;
+          const anyKey     = `ANY__${slotStart}`;
+
+          if (!bookedSet.has(managerKey) && !bookedSet.has(anyKey)) {
+            daySlots.push({
+              date,
+              day:          dayOfWeek,
+              startTime:    slotStart,
+              endTime:      slotEnd,
+              displayTime:  formatTo12Hour(slotStart),
+              managerName:  window.manager_rel!.name,
+              managerEmail: window.manager_rel!.email,
+              location:     locationNameMap[locId],
+              locationId:   locId,
+            });
+          }
+        }
+      }
+    }
+
+    if (daySlots.length > 0) {
+      slotsByDay.push({ date, dayOfWeek, slots: daySlots });
+    }
+  }
+
+  const daysWithSlots = slotsByDay.length;
+
+  if (daysWithSlots === 0) {
+    return { slots: [], daysWithSlots: 0 };
+  }
+
+  if (daysWithSlots === 1) {
+    // Only one day — return up to 3 slots from that day
+    return {
+      slots:         slotsByDay[0].slots.slice(0, 3),
+      daysWithSlots: 1,
+    };
+  }
+
+  // Multiple days — 1 slot per day, capped at 3 days
+  const onePerDay = slotsByDay.slice(0, 3).map((d) => d.slots[0]);
+  return {
+    slots:         onePerDay,
+    daysWithSlots,
+  };
+}
+
 // ✅ NEW: Get all managers for dropdown
 export async function getAllManagers() {
   const managers = await prisma.user.findMany({

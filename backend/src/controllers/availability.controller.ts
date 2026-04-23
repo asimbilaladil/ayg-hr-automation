@@ -89,6 +89,53 @@ export async function getSuggestions(req: Request, res: Response, next: NextFunc
   }
 }
 
+export async function getSuggestionsByTime(req: Request, res: Response, next: NextFunction) {
+  try {
+    const afterTime  = req.query.afterTime  ? String(req.query.afterTime)  : undefined;
+    const locationId = req.query.locationId ? String(req.query.locationId) : undefined;
+
+    if (!afterTime) {
+      return res.status(400).json({ error: 'afterTime is required (e.g. "16:00" or "4:00 PM")' });
+    }
+
+    // Normalise: accept both "4:00 PM" and "16:00"
+    function normalize(t: string): string {
+      const ampm = t.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+      if (ampm) {
+        let h = parseInt(ampm[1], 10);
+        const period = ampm[3].toUpperCase();
+        if (period === 'PM' && h !== 12) h += 12;
+        if (period === 'AM' && h === 12) h = 0;
+        return `${String(h).padStart(2, '0')}:${ampm[2]}`;
+      }
+      // Already 24-hour
+      const plain = t.trim().match(/^(\d{1,2}):(\d{2})$/);
+      if (plain) return `${String(parseInt(plain[1], 10)).padStart(2, '0')}:${plain[2]}`;
+      return t.trim();
+    }
+
+    const normalizedTime = normalize(afterTime);
+
+    // Build 7-day window starting from today
+    const today = new Date();
+    const days: Array<{ date: string; dayOfWeek: string }> = [];
+
+    for (let offset = 0; offset < 7; offset++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() + offset);
+      days.push({
+        date:      d.toISOString().slice(0, 10),
+        dayOfWeek: d.toLocaleString('en-US', { weekday: 'long' }),
+      });
+    }
+
+    const result = await service.getSuggestedSlotsByTime({ afterTime: normalizedTime, locationId, days });
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function validateSlot(req: Request, res: Response, next: NextFunction) {
   try {
     const { locationId, location, date, time } = req.query;

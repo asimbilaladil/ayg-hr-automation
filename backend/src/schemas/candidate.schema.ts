@@ -26,10 +26,11 @@ export const UpdateAIReviewSchema = z.object({
 });
 
 export const UpdateCallResultSchema = z.object({
-  transcript:   z.string().optional(),
-  recordingUrl: z.string().url().optional(),
-  called:       z.string().optional(),
-  status:       z.string().optional(),
+  transcript:       z.string().optional(),
+  recordingUrl:     z.string().url().optional(),
+  called:           z.string().optional(),
+  status:           z.string().optional(),
+  interviewAnswers: z.string().optional(),  // JSON string: [{question, category, answer}]
 });
 
 export const UpdateCandidateSchema = z.object({
