@@ -424,10 +424,14 @@ function resolveCallStatus(raw?: string): string {
 }
 
 export async function updateCallResult(emailId: string, data: any) {
+  // Do not overwrite status if candidate already has an interview booked
+  const existing = await prisma.candidate.findUnique({ where: { emailId } });
+  if (!existing) throw new Error('NOT_FOUND');
+
   const updated = await prisma.candidate.update({
     where: { emailId },
     data: {
-      status:     resolveCallStatus(data.status),
+      ...(existing.status !== 'interview-booked' && { status: resolveCallStatus(data.status) }),
       ...(data.transcript        != null && { transcript:        data.transcript }),
       ...(data.recordingUrl      != null && { recordingUrl:      data.recordingUrl }),
       ...(data.interviewAnswers  != null && { interviewAnswers:  data.interviewAnswers }),
@@ -468,10 +472,14 @@ export async function updateAIReviewById(id: string, data: any) {
 }
 
 export async function updateCallResultById(id: string, data: any) {
+  // Do not overwrite status if candidate already has an interview booked
+  const existing = await prisma.candidate.findUnique({ where: { id } });
+  if (!existing) throw new Error('NOT_FOUND');
+
   const updated = await prisma.candidate.update({
     where: { id },
     data: {
-      status:     resolveCallStatus(data.status),
+      ...(existing.status !== 'interview-booked' && { status: resolveCallStatus(data.status) }),
       ...(data.transcript        != null && { transcript:        data.transcript }),
       ...(data.recordingUrl      != null && { recordingUrl:      data.recordingUrl }),
       ...(data.interviewAnswers  != null && { interviewAnswers:  data.interviewAnswers }),
