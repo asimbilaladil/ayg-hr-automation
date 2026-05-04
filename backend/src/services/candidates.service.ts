@@ -303,7 +303,13 @@ export async function updateCandidate(id: string, data: UpdateCandidateInput) {
 }
 
 export async function deleteCandidate(id: string) {
-  return prisma.candidate.delete({ where: { id } });
+
+    const candidate = await prisma.candidate.findUnique({ where: { id } });
+    if (!candidate) throw new Error('NOT_FOUND');
+  
+    const filePath = path.resolve(candidate.resumeUrl);
+    deleteFileSafe(filePath); // non-blocking
+    return prisma.candidate.delete({ where: { id } });
 }
 
 export async function updateCandidateStatus(emailId: string, data: any) {
@@ -504,4 +510,34 @@ export async function resetProblematicCandidates() {
       status: 'pending'
     }
   });
+}
+
+async function deleteFileSafe(filePath: string) {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+
+    if (!filePath) {
+      console.warn('⚠️ No file path provided');
+      return;
+    }
+
+    const resolvedPath = path.resolve(filePath);
+
+    // strict safety check (adjust base dir if needed)
+    if (!resolvedPath.startsWith('/root/.n8n-files/resumes')) {
+      console.warn('⚠️ Unsafe path, skipping delete:', resolvedPath);
+      return;
+    }
+
+    await fs.promises.unlink(resolvedPath);
+    console.log('✅ CV deleted:', resolvedPath);
+
+  } catch (err: any) {
+    if (err.code === 'ENOENT') {
+      console.warn('⚠️ File already deleted or not found');
+    } else {
+      console.error('❌ File delete error:', err.message);
+    }
+  }
 }
