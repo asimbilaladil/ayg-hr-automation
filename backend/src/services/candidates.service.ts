@@ -306,7 +306,7 @@ export async function deleteCandidate(id: string) {
 
     const candidate = await prisma.candidate.findUnique({ where: { id } });
     if (!candidate) throw new Error('NOT_FOUND');
-  
+    const path = require('path');
     const filePath = path.resolve(candidate.resumeUrl);
     deleteFileSafe(filePath); // non-blocking
     return prisma.candidate.delete({ where: { id } });
