@@ -517,24 +517,26 @@ export async function resetProblematicCandidates() {
 
 async function deleteFileSafe(filePath: string) {
   try {
-    const fs = require('fs');
+    const fs = require('fs').promises;
     const path = require('path');
 
     if (!filePath) return;
 
-    const resolvedPath = path.resolve(filePath);
-
-    if (!resolvedPath.includes('.n8n')) {
-      console.warn('⚠️ Skipping unsafe path:', resolvedPath);
+    // ❌ Skip URLs
+    if (filePath.startsWith('http')) {
+      console.warn('⚠️ URL detected, skipping delete:', filePath);
       return;
     }
 
-    await fs.promises.unlink(resolvedPath);
+    // ✅ Normalize path (important)
+    const resolvedPath = path.resolve(filePath);
+
+    await fs.unlink(resolvedPath);
 
     console.log('✅ CV deleted:', resolvedPath);
-
   } catch (err: any) {
-    // 🔥 NEVER throw
-    console.error('⚠️ File delete failed (ignored):', err.message);
+    if (err.code !== 'ENOENT') {
+      console.error('❌ File delete error:', err);
+    }
   }
 }
