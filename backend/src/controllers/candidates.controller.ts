@@ -113,9 +113,17 @@ export async function update(req: Request, res: Response, next: NextFunction) {
 
 export async function remove(req: Request, res: Response, next: NextFunction) {
   try {
-    await service.deleteCandidate(req.params.id);
-    res.status(204).send();
-  } catch (err) { next(err); }
+    // Route param is :id — could be a CUID or an emailId; service handles both
+    const identifier = req.params.id;
+    const result = await service.deleteCandidate(identifier);
+    res.status(200).json(result);
+  } catch (err: any) {
+    if (err.message === 'NOT_FOUND') {
+      res.status(404).json({ error: 'Candidate not found' });
+      return;
+    }
+    next(err);
+  }
 }
 
 export async function resetProblematic(req: Request, res: Response, next: NextFunction) {

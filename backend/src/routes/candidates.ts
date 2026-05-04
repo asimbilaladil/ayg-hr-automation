@@ -15,7 +15,7 @@ router.patch('/id/:candidateId/ai-review', apiKeyAuth, ctrl.updateAIReviewById);
 router.patch('/id/:candidateId/call-result', apiKeyAuth, ctrl.updateCallResultById);
 router.post('/reset-problematic', apiKeyAuth, ctrl.resetProblematic);
 router.patch('/:emailId/status', apiKeyAuth, ctrl.updateStatus);
-router.delete('/:emailId', apiKeyAuth, ctrl.remove);
+router.delete('/:id', apiKeyAuth, ctrl.remove);
 
 // Frontend endpoints (JWT)
 router.get('/', auth, rbac('HR'), ctrl.list);

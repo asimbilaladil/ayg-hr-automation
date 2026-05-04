@@ -303,16 +303,32 @@ export async function updateCandidate(id: string, data: UpdateCandidateInput) {
 }
 
 export async function deleteCandidate(id: string) {
+  // Support lookup by either CUID (id) or emailId
+  const candidate = await prisma.candidate.findFirst({
+    where: { OR: [{ id }, { emailId: id }] },
+    include: { appointment: true },
+  });
 
-    const candidate = await prisma.candidate.findUnique({ where: { id } });
-    if (!candidate) {
-      return { error: 'Candidate not found' }; // or handle in controller
-    }
-    if (candidate?.resumeUrl) {
-      deleteFileSafe(candidate.resumeUrl); // ❗ no await (non-blocking)
-    }
-    
-    return await prisma.candidate.delete({ where: { id } });
+  if (!candidate) {
+    const err: any = new Error('NOT_FOUND');
+    err.status = 404;
+    throw err;
+  }
+
+  // Delete related appointment first to avoid FK constraint violation
+  if (candidate.appointment) {
+    await prisma.appointment.delete({ where: { candidateId: candidate.id } });
+  }
+
+  // Delete the candidate record
+  await prisma.candidate.delete({ where: { id: candidate.id } });
+
+  // Delete CV file after DB deletion (non-blocking, errors are swallowed)
+  if (candidate.resumeUrl) {
+    deleteFileSafe(candidate.resumeUrl);
+  }
+
+  return { success: true, deleted: candidate.id };
 }
 
 export async function updateCandidateStatus(emailId: string, data: any) {
