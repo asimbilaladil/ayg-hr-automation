@@ -305,7 +305,9 @@ export async function updateCandidate(id: string, data: UpdateCandidateInput) {
 export async function deleteCandidate(id: string) {
 
     const candidate = await prisma.candidate.findUnique({ where: { id } });
-    if (!candidate) throw new Error('NOT_FOUND');
+    if (!candidate) {
+      return { error: 'Candidate not found' }; // or handle in controller
+    }
     if (candidate?.resumeUrl) {
       deleteFileSafe(candidate.resumeUrl); // ❗ no await (non-blocking)
     }
@@ -522,17 +524,17 @@ async function deleteFileSafe(filePath: string) {
 
     const resolvedPath = path.resolve(filePath);
 
-    // optional safety (loosen if needed)
     if (!resolvedPath.includes('.n8n')) {
       console.warn('⚠️ Skipping unsafe path:', resolvedPath);
       return;
     }
 
     await fs.promises.unlink(resolvedPath);
+
     console.log('✅ CV deleted:', resolvedPath);
 
   } catch (err: any) {
-    // 🔥 IMPORTANT: NEVER throw
-    console.error('⚠️ File delete skipped:', err.message);
+    // 🔥 NEVER throw
+    console.error('⚠️ File delete failed (ignored):', err.message);
   }
 }
