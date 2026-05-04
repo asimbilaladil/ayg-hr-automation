@@ -306,10 +306,11 @@ export async function deleteCandidate(id: string) {
 
     const candidate = await prisma.candidate.findUnique({ where: { id } });
     if (!candidate) throw new Error('NOT_FOUND');
-    const path = require('path');
-    const filePath = path.resolve(candidate.resumeUrl);
-    deleteFileSafe(filePath); // non-blocking
-    return prisma.candidate.delete({ where: { id } });
+    if (candidate?.resumeUrl) {
+      deleteFileSafe(candidate.resumeUrl); // ❗ no await (non-blocking)
+    }
+    
+    return await prisma.candidate.delete({ where: { id } });
 }
 
 export async function updateCandidateStatus(emailId: string, data: any) {
@@ -517,16 +518,13 @@ async function deleteFileSafe(filePath: string) {
     const fs = require('fs');
     const path = require('path');
 
-    if (!filePath) {
-      console.warn('⚠️ No file path provided');
-      return;
-    }
+    if (!filePath) return;
 
     const resolvedPath = path.resolve(filePath);
 
-    // strict safety check (adjust base dir if needed)
-    if (!resolvedPath.startsWith('/root/.n8n-files/resumes')) {
-      console.warn('⚠️ Unsafe path, skipping delete:', resolvedPath);
+    // optional safety (loosen if needed)
+    if (!resolvedPath.includes('.n8n')) {
+      console.warn('⚠️ Skipping unsafe path:', resolvedPath);
       return;
     }
 
@@ -534,10 +532,7 @@ async function deleteFileSafe(filePath: string) {
     console.log('✅ CV deleted:', resolvedPath);
 
   } catch (err: any) {
-    if (err.code === 'ENOENT') {
-      console.warn('⚠️ File already deleted or not found');
-    } else {
-      console.error('❌ File delete error:', err.message);
-    }
+    // 🔥 IMPORTANT: NEVER throw
+    console.error('⚠️ File delete skipped:', err.message);
   }
 }
