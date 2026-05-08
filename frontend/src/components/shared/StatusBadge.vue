@@ -14,7 +14,7 @@ const MAP = {
   reviewing:  { label: 'Reviewing',  cls: 'bg-blue-100 text-blue-800' },
   reviewed:   { label: 'Reviewed',   cls: 'bg-indigo-100 text-indigo-800' },
   called:                { label: 'Called',               cls: 'bg-purple-100 text-purple-800' },
-  inbound_call_received: { label: 'Inbound Call Received', cls: 'bg-purple-100 text-purple-800' },
+  inbound_call_received: { label: 'Inbound Call',          cls: 'bg-purple-100 text-purple-800' },
   'no-answer':      { label: 'No Answer',         cls: 'bg-orange-100 text-orange-800' },
   'interview-booked': { label: 'Interview Booked', cls: 'bg-teal-100 text-teal-800' },
   scheduled:        { label: 'Scheduled',         cls: 'bg-brand-100 text-brand-800' },
