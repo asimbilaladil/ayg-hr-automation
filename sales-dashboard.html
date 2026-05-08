@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sales Summary Dashboard</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f1f5f9;
+      color: #1e293b;
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 28px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid #cbd5e1;
+    }
+
+    header h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #0f172a;
+      letter-spacing: -0.5px;
+    }
+
+    header .period {
+      font-size: 0.85rem;
+      color: #64748b;
+      background: #e2e8f0;
+      padding: 6px 14px;
+      border-radius: 20px;
+    }
+
+    /* KPI Cards */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+
+    .kpi-card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 20px 22px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+
+    .kpi-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      border-radius: 12px 12px 0 0;
+    }
+
+    .kpi-card.green::before  { background: linear-gradient(90deg, #10b981, #34d399); }
+    .kpi-card.blue::before   { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+    .kpi-card.purple::before { background: linear-gradient(90deg, #8b5cf6, #a78bfa); }
+    .kpi-card.orange::before { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+    .kpi-card.red::before    { background: linear-gradient(90deg, #ef4444, #f87171); }
+    .kpi-card.cyan::before   { background: linear-gradient(90deg, #06b6d4, #22d3ee); }
+
+    .kpi-label {
+      font-size: 0.72rem;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+    }
+
+    .kpi-value {
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: #0f172a;
+      line-height: 1;
+    }
+
+    .kpi-sub {
+      font-size: 0.78rem;
+      color: #64748b;
+      margin-top: 6px;
+    }
+
+    /* Charts Grid */
+    .charts-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 28px;
+    }
+
+    .chart-card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 22px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+
+    .chart-card.full-width {
+      grid-column: 1 / -1;
+    }
+
+    .chart-title {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #475569;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 18px;
+    }
+
+    .chart-wrap {
+      position: relative;
+      height: 240px;
+    }
+
+    .chart-wrap.tall {
+      height: 300px;
+    }
+
+    /* Bottom Row */
+    .bottom-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 20px;
+    }
+
+    .stat-table {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 22px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+
+    .stat-table .chart-title { margin-bottom: 14px; }
+
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 9px 0;
+      border-bottom: 1px solid #f1f5f9;
+      font-size: 0.85rem;
+    }
+
+    .stat-row:last-child { border-bottom: none; }
+
+    .stat-row .label { color: #64748b; }
+    .stat-row .val   { font-weight: 600; color: #1e293b; }
+    .stat-row .val.neg { color: #dc2626; }
+    .stat-row .val.pos { color: #16a34a; }
+
+    /* Badge */
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 0.72rem;
+      font-weight: 600;
+    }
+    .badge.green  { background: #052e16; color: #34d399; }
+    .badge.red    { background: #2d0707; color: #f87171; }
+
+    @media (max-width: 900px) {
+      .charts-grid  { grid-template-columns: 1fr; }
+      .bottom-grid  { grid-template-columns: 1fr; }
+      .chart-card.full-width { grid-column: auto; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>📊 Sales Summary Dashboard</h1>
+    <div style="color:#475569;font-size:0.8rem;margin-top:4px;">Period covered by salesSummary-43.json</div>
+  </div>
+  <div class="period">Report #43</div>
+</header>
+
+<!-- KPI Row -->
+<div class="kpi-grid">
+  <div class="kpi-card green">
+    <div class="kpi-label">Gross Sales</div>
+    <div class="kpi-value">$280,499</div>
+    <div class="kpi-sub">Total before adjustments</div>
+  </div>
+  <div class="kpi-card blue">
+    <div class="kpi-label">Net Sales</div>
+    <div class="kpi-value">$272,536</div>
+    <div class="kpi-sub">After discounts &amp; returns</div>
+  </div>
+  <div class="kpi-card purple">
+    <div class="kpi-label">Total Orders</div>
+    <div class="kpi-value">16,246</div>
+    <div class="kpi-sub">Avg ticket: $16.78</div>
+  </div>
+  <div class="kpi-card orange">
+    <div class="kpi-label">Total Discounts</div>
+    <div class="kpi-value">$7,963</div>
+    <div class="kpi-sub">2.84% of gross sales</div>
+  </div>
+  <div class="kpi-card cyan">
+    <div class="kpi-label">Sales Tax</div>
+    <div class="kpi-value">$22,450</div>
+    <div class="kpi-sub">On $280,064 taxable</div>
+  </div>
+  <div class="kpi-card red">
+    <div class="kpi-label">Total Refunds</div>
+    <div class="kpi-value">$1,050</div>
+    <div class="kpi-sub">73 refund transactions</div>
+  </div>
+</div>
+
+<!-- Charts Row -->
+<div class="charts-grid">
+  <!-- Payment Methods Doughnut -->
+  <div class="chart-card">
+    <div class="chart-title">💳 Payment Methods</div>
+    <div class="chart-wrap">
+      <canvas id="paymentChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Dining Options Bar -->
+  <div class="chart-card">
+    <div class="chart-title">🍽️ Sales by Dining Option</div>
+    <div class="chart-wrap">
+      <canvas id="diningChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Sales Breakdown Horizontal Bar -->
+  <div class="chart-card full-width">
+    <div class="chart-title">📈 Sales Breakdown Overview</div>
+    <div class="chart-wrap tall">
+      <canvas id="breakdownChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Bottom Stats Row -->
+<div class="bottom-grid">
+
+  <!-- Sales Summary -->
+  <div class="stat-table">
+    <div class="chart-title">💰 Sales Summary</div>
+    <div class="stat-row"><span class="label">Gross Sales</span><span class="val">$280,499.35</span></div>
+    <div class="stat-row"><span class="label">Total Sales</span><span class="val">$280,449.35</span></div>
+    <div class="stat-row"><span class="label">Net Sales</span><span class="val pos">$272,536.30</span></div>
+    <div class="stat-row"><span class="label">Taxable Sales</span><span class="val">$280,064.08</span></div>
+    <div class="stat-row"><span class="label">Non-taxable Sales</span><span class="val">$385.27</span></div>
+    <div class="stat-row"><span class="label">Service Fee</span><span class="val">$50.00</span></div>
+    <div class="stat-row"><span class="label">Sales Tax</span><span class="val">$22,450.39</span></div>
+    <div class="stat-row"><span class="label">Tips Total</span><span class="val pos">$1,562.29</span></div>
+  </div>
+
+  <!-- Discounts & Adjustments -->
+  <div class="stat-table">
+    <div class="chart-title">🔖 Discounts &amp; Adjustments</div>
+    <div class="stat-row"><span class="label">Item Discounts</span><span class="val neg">-$1,201.65</span></div>
+    <div class="stat-row"><span class="label">Order Discounts</span><span class="val neg">-$6,761.40</span></div>
+    <div class="stat-row"><span class="label">Total Discounts</span><span class="val neg">-$7,963.05</span></div>
+    <div class="stat-row"><span class="label">Refunds</span><span class="val neg">-$1,049.51 <span class="badge red">73</span></span></div>
+    <div class="stat-row"><span class="label">Returns (items)</span><span class="val neg">-$341.25 <span class="badge red">135</span></span></div>
+    <div class="stat-row"><span class="label">Voided</span><span class="val neg">-$1,225.12 <span class="badge red">541</span></span></div>
+    <div class="stat-row"><span class="label">Comps</span><span class="val neg">-$25.77 <span class="badge red">11</span></span></div>
+    <div class="stat-row"><span class="label">Total Payments</span><span class="val pos">$295,265.19</span></div>
+  </div>
+
+  <!-- Card Breakdown -->
+  <div class="stat-table">
+    <div class="chart-title">🏦 Payment Breakdown</div>
+    <div class="stat-row"><span class="label">Cash</span><span class="val">$38,090.66</span></div>
+    <div class="stat-row"><span class="label">Credit (all)</span><span class="val">$217,663.52</span></div>
+    <div class="stat-row"><span class="label">↳ Visa</span><span class="val">$150,215.16</span></div>
+    <div class="stat-row"><span class="label">↳ Mastercard</span><span class="val">$46,156.32</span></div>
+    <div class="stat-row"><span class="label">↳ Amex</span><span class="val">$5,710.77</span></div>
+    <div class="stat-row"><span class="label">↳ Discover</span><span class="val">$15,581.27</span></div>
+    <div class="stat-row"><span class="label">Check</span><span class="val">$945.85</span></div>
+    <div class="stat-row"><span class="label">Custom Payments</span><span class="val">$38,494.12</span></div>
+  </div>
+
+</div>
+
+<script>
+  const CHART_DEFAULTS = {
+    plugins: {
+      legend: {
+        labels: { color: '#475569', font: { size: 12 }, padding: 16 }
+      },
+      tooltip: {
+        backgroundColor: '#1e293b',
+        titleColor: '#f8fafc',
+        bodyColor: '#cbd5e1',
+        borderColor: '#334155',
+        borderWidth: 1,
+      }
+    },
+    responsive: true,
+    maintainAspectRatio: false,
+  };
+
+  // 1. Payment Methods Doughnut
+  new Chart(document.getElementById('paymentChart'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Cash', 'Visa', 'Mastercard', 'Amex', 'Discover', 'Check', 'Custom / Other'],
+      datasets: [{
+        data: [38090.66, 150215.16, 46156.32, 5710.77, 15581.27, 945.85, 38494.12],
+        backgroundColor: ['#22d3ee','#3b82f6','#8b5cf6','#f59e0b','#10b981','#64748b','#f97316'],
+        borderWidth: 2,
+        borderColor: '#161b27',
+        hoverOffset: 8,
+      }]
+    },
+    options: {
+      ...CHART_DEFAULTS,
+      cutout: '62%',
+      plugins: {
+        ...CHART_DEFAULTS.plugins,
+        legend: {
+          position: 'right',
+          labels: { color: '#475569', font: { size: 11 }, padding: 10, boxWidth: 12 }
+        },
+        tooltip: {
+          ...CHART_DEFAULTS.plugins.tooltip,
+          callbacks: {
+            label: ctx => ` $${ctx.parsed.toLocaleString('en-US', {minimumFractionDigits:2})}  (${((ctx.parsed / 295265.19)*100).toFixed(1)}%)`
+          }
+        }
+      }
+    }
+  });
+
+  // 2. Dining Options Bar
+  new Chart(document.getElementById('diningChart'), {
+    type: 'bar',
+    data: {
+      labels: ['Walk-in\n(7.7%)', 'Take-Out\n(13.4%)', 'Drive-Thru\n(0.3%)', 'Delivery\n(66.4%)', 'Curbside\n(2.8%)', 'Option 100\n(6.9%)', 'Option 101\n(2.5%)'],
+      datasets: [{
+        label: 'Sales ($)',
+        data: [21617.86, 37658.32, 809.10, 186154.66, 7877.94, 19381.10, 6950.37],
+        backgroundColor: [
+          'rgba(59,130,246,0.8)',
+          'rgba(139,92,246,0.8)',
+          'rgba(245,158,11,0.8)',
+          'rgba(16,185,129,0.8)',
+          'rgba(6,182,212,0.8)',
+          'rgba(249,115,22,0.8)',
+          'rgba(236,72,153,0.8)',
+        ],
+        borderRadius: 6,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      ...CHART_DEFAULTS,
+      plugins: {
+        ...CHART_DEFAULTS.plugins,
+        legend: { display: false },
+        tooltip: {
+          ...CHART_DEFAULTS.plugins.tooltip,
+          callbacks: {
+            label: ctx => ` $${ctx.parsed.y.toLocaleString('en-US', {minimumFractionDigits:2})}`
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: '#475569', font: { size: 10 } },
+          grid: { color: '#e2e8f0' }
+        },
+        y: {
+          ticks: {
+            color: '#64748b',
+            font: { size: 10 },
+            callback: v => '$' + (v >= 1000 ? (v/1000).toFixed(0)+'k' : v)
+          },
+          grid: { color: '#e2e8f0' }
+        }
+      }
+    }
+  });
+
+  // 3. Sales Breakdown Horizontal Bar
+  new Chart(document.getElementById('breakdownChart'), {
+    type: 'bar',
+    data: {
+      labels: ['Gross Sales', 'Net Sales', 'Total Discounts', 'Sales Tax', 'Tips', 'Refunds', 'Voided', 'Returns'],
+      datasets: [{
+        label: 'Amount ($)',
+        data: [280499.35, 272536.30, 7963.05, 22450.39, 1562.29, 1049.51, 1225.12, 341.25],
+        backgroundColor: [
+          'rgba(16,185,129,0.85)',
+          'rgba(59,130,246,0.85)',
+          'rgba(245,158,11,0.85)',
+          'rgba(139,92,246,0.85)',
+          'rgba(6,182,212,0.85)',
+          'rgba(239,68,68,0.85)',
+          'rgba(249,115,22,0.85)',
+          'rgba(236,72,153,0.85)',
+        ],
+        borderRadius: 6,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      ...CHART_DEFAULTS,
+      indexAxis: 'y',
+      plugins: {
+        ...CHART_DEFAULTS.plugins,
+        legend: { display: false },
+        tooltip: {
+          ...CHART_DEFAULTS.plugins.tooltip,
+          callbacks: {
+            label: ctx => ` $${ctx.parsed.x.toLocaleString('en-US', {minimumFractionDigits:2})}`
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: {
+            color: '#64748b',
+            font: { size: 11 },
+            callback: v => '$' + (v >= 1000 ? (v/1000).toFixed(0)+'k' : v)
+          },
+          grid: { color: '#e2e8f0' }
+        },
+        y: {
+          ticks: { color: '#475569', font: { size: 12 } },
+          grid: { color: '#e2e8f0' }
+        }
+      }
+    }
+  });
+</script>
+</body>
+</html>
