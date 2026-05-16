@@ -76,6 +76,14 @@ export const usersApi = {
   resetPassword: (id) => api.post(`/api/users/${id}/reset-password`),
   changePassword: (currentPassword, newPassword) =>
     api.post('/api/users/me/change-password', { currentPassword, newPassword }),
+  swapPreview: (managerAId, managerBId) =>
+    api.get('/api/users/swap-preview', { params: { managerAId, managerBId } }),
+  swapLocations: (managerAId, managerBId) =>
+    api.post('/api/users/swap-locations', { managerAId, managerBId }),
+  listLocations: () => api.get('/api/users/locations'),
+  assignLocation: (managerId, locationName, locationId) =>
+    api.post('/api/users/assign-location', { managerId, locationName, locationId }),
+  deleteManager: (id) => api.delete(`/api/users/${id}`),
 }
 
 export default api

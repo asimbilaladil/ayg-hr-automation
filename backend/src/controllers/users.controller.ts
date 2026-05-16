@@ -22,6 +22,19 @@ const ChangePasswordSchema = z.object({
   newPassword: z.string().min(8, 'New password must be at least 8 characters'),
 });
 
+const SwapLocationsSchema = z.object({
+  managerAId: z.string().min(1),
+  managerBId: z.string().min(1),
+});
+
+const AssignLocationSchema = z.object({
+  managerId: z.string().min(1),
+  locationName: z.string().optional(),
+  locationId: z.string().optional(),
+}).refine(d => d.locationName?.trim() || d.locationId, {
+  message: 'Either locationName or locationId is required',
+});
+
 export async function createUser(req: Request, res: Response, next: NextFunction) {
   try {
     const data = CreateUserSchema.parse(req.body);
@@ -103,4 +116,64 @@ export async function deactivate(req: Request, res: Response, next: NextFunction
     const user = await service.deactivateUser(req.params.id);
     res.json(user);
   } catch (err) { next(err); }
+}
+
+export async function deleteManager(req: Request, res: Response, next: NextFunction) {
+  try {
+    const result = await service.deleteManager(req.params.id);
+    res.json(result);
+  } catch (err: any) {
+    if (err.message === 'NOT_FOUND') return res.status(404).json({ error: 'Manager not found' });
+    if (err.message === 'NOT_MANAGER') return res.status(400).json({ error: 'Only managers can be deleted this way' });
+    next(err);
+  }
+}
+
+export async function listLocations(req: Request, res: Response, next: NextFunction) {
+  try {
+    const locations = await service.listLocations();
+    res.json({ data: locations });
+  } catch (err) { next(err); }
+}
+
+export async function assignLocation(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { managerId, locationName, locationId } = AssignLocationSchema.parse(req.body);
+    const result = await service.assignLocation(managerId, { locationName, locationId });
+    res.status(201).json(result);
+  } catch (err: any) {
+    if (err.message === 'MANAGER_NOT_FOUND') return res.status(404).json({ error: 'Manager not found' });
+    if (err.message === 'MANAGER_HAS_LOCATION') return res.status(400).json({ error: 'This manager already has a location assigned' });
+    if (err.message === 'LOCATION_NOT_FOUND') return res.status(404).json({ error: 'Location not found' });
+    if (err.message === 'NO_LOCATION_OPTION') return res.status(400).json({ error: 'Provide a new location name or an existing location' });
+    next(err);
+  }
+}
+
+export async function swapPreview(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { managerAId, managerBId } = SwapLocationsSchema.parse(req.query);
+    const preview = await service.getSwapPreview(managerAId, managerBId);
+    res.json(preview);
+  } catch (err: any) {
+    if (err.message === 'SAME_MANAGER') return res.status(400).json({ error: 'Select two different managers' });
+    if (err.message === 'MANAGER_A_NOT_FOUND' || err.message === 'MANAGER_B_NOT_FOUND') return res.status(404).json({ error: 'Manager not found' });
+    if (err.message === 'MANAGER_A_NO_LOCATION') return res.status(400).json({ error: 'First manager has no location assigned' });
+    if (err.message === 'MANAGER_B_NO_LOCATION') return res.status(400).json({ error: 'Second manager has no location assigned' });
+    next(err);
+  }
+}
+
+export async function swapLocations(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { managerAId, managerBId } = SwapLocationsSchema.parse(req.body);
+    const result = await service.swapManagerLocations(managerAId, managerBId);
+    res.json(result);
+  } catch (err: any) {
+    if (err.message === 'SAME_MANAGER') return res.status(400).json({ error: 'Select two different managers' });
+    if (err.message === 'MANAGER_A_NOT_FOUND' || err.message === 'MANAGER_B_NOT_FOUND') return res.status(404).json({ error: 'Manager not found' });
+    if (err.message === 'MANAGER_A_NO_LOCATION') return res.status(400).json({ error: 'First manager has no location assigned' });
+    if (err.message === 'MANAGER_B_NO_LOCATION') return res.status(400).json({ error: 'Second manager has no location assigned' });
+    next(err);
+  }
 }
