@@ -113,8 +113,8 @@ export async function listCandidates(
       },
     });
     const ids = locationRecords.map(l => l.id);
-    if (ids.length > 0) where.locationId = { in: ids };
-    else where.locationId = null; // no match → return empty
+    if (ids.length === 0) return { data: [], total: 0, page, limit };
+    where.locationId = { in: ids };
   }
 
   if (postingName) {

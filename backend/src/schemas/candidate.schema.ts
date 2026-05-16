@@ -46,10 +46,14 @@ export const UpdateCandidateSchema = z.object({
 
 export const CandidateQuerySchema = z.object({
   status: z.string().optional(),
-  // Accept a single ?location=X or repeated ?location=X&location=Y
+  // Accept ?location=X, repeated ?location=X&location=Y, or comma-separated ?location=X,Y
   location: z.union([z.string(), z.array(z.string())])
     .optional()
-    .transform(v => v === undefined ? undefined : Array.isArray(v) ? v : [v]),
+    .transform(v => {
+      if (v === undefined) return undefined;
+      const arr = Array.isArray(v) ? v : [v];
+      return arr.flatMap(s => s.split(',').map(l => l.trim()).filter(Boolean));
+    }),
   postingName: z.string().optional(),
   hiringManager: z.string().optional(),
   aiRecommendation: z.enum(['HIRE', 'MAYBE', 'REJECT']).optional(),
