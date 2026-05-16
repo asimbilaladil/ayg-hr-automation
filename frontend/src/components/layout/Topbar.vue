@@ -19,6 +19,68 @@
         {{ auth.user?.role }}
       </span>
 
+      <!-- Notification bell -->
+      <div class="relative" ref="notifRef">
+        <button
+          class="relative p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+          @click="toggleNotif"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+          </svg>
+          <span
+            v-if="unreadCount > 0"
+            class="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center"
+          >{{ unreadCount > 9 ? '9+' : unreadCount }}</span>
+        </button>
+
+        <!-- Notifications dropdown -->
+        <Transition
+          enter-active-class="transition ease-out duration-100"
+          enter-from-class="transform opacity-0 scale-95"
+          enter-to-class="transform opacity-100 scale-100"
+          leave-active-class="transition ease-in duration-75"
+          leave-from-class="transform opacity-100 scale-100"
+          leave-to-class="transform opacity-0 scale-95"
+        >
+          <div
+            v-if="notifOpen"
+            class="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-lg border border-gray-100 z-50 overflow-hidden"
+          >
+            <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+              <p class="text-sm font-semibold text-gray-900">Notifications</p>
+              <button
+                v-if="unreadCount > 0"
+                class="text-xs text-brand-600 hover:text-brand-700 font-medium"
+                @click="doMarkAllRead"
+              >Mark all read</button>
+            </div>
+            <div class="max-h-80 overflow-y-auto divide-y divide-gray-50">
+              <div v-if="!notifications.length" class="px-4 py-8 text-center text-sm text-gray-400">
+                No notifications
+              </div>
+              <div
+                v-for="n in notifications"
+                :key="n.id"
+                class="px-4 py-3 hover:bg-gray-50 transition-colors cursor-pointer"
+                :class="{ 'bg-blue-50/50': !n.read }"
+                @click="doMarkOneRead(n)"
+              >
+                <div class="flex items-start gap-2">
+                  <span v-if="!n.read" class="mt-1.5 w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
+                  <span v-else class="mt-1.5 w-2 h-2 flex-shrink-0" />
+                  <div class="min-w-0">
+                    <p class="text-sm font-medium text-gray-900">{{ n.title }}</p>
+                    <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">{{ n.body }}</p>
+                    <p class="text-xs text-gray-400 mt-1">{{ timeAgo(n.createdAt) }}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Transition>
+      </div>
+
       <!-- Profile dropdown trigger -->
       <div class="relative" ref="dropdownRef">
         <button
@@ -145,7 +207,7 @@
 import { ref, computed, reactive, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { usersApi } from '@/api'
+import { usersApi, notificationsApi } from '@/api'
 
 defineEmits(['toggle-sidebar'])
 
@@ -179,10 +241,62 @@ function handleOutsideClick(e) {
   if (dropdownRef.value && !dropdownRef.value.contains(e.target)) {
     dropdownOpen.value = false
   }
+  if (notifRef.value && !notifRef.value.contains(e.target)) {
+    notifOpen.value = false
+  }
 }
 
-onMounted(()  => document.addEventListener('click', handleOutsideClick))
-onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
+// ── Notifications ────────────────────────────────────────────────────────────
+const notifOpen = ref(false)
+const notifRef = ref(null)
+const notifications = ref([])
+const unreadCount = ref(0)
+
+function toggleNotif() { notifOpen.value = !notifOpen.value }
+
+async function fetchNotifications() {
+  try {
+    const { data } = await notificationsApi.list()
+    notifications.value = data.notifications || []
+    unreadCount.value = data.unreadCount || 0
+  } catch {}
+}
+
+async function doMarkAllRead() {
+  await notificationsApi.markAllRead()
+  notifications.value = notifications.value.map(n => ({ ...n, read: true }))
+  unreadCount.value = 0
+}
+
+async function doMarkOneRead(n) {
+  if (!n.read) {
+    await notificationsApi.markOneRead(n.id)
+    n.read = true
+    unreadCount.value = Math.max(0, unreadCount.value - 1)
+  }
+}
+
+function timeAgo(dateStr) {
+  const diff = Date.now() - new Date(dateStr).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  return `${Math.floor(hrs / 24)}d ago`
+}
+
+let notifTimer = null
+
+onMounted(()  => {
+  document.addEventListener('click', handleOutsideClick)
+  fetchNotifications()
+  notifTimer = setInterval(fetchNotifications, 30000)
+})
+onUnmounted(() => {
+  document.removeEventListener('click', handleOutsideClick)
+  clearInterval(notifTimer)
+})
 
 function doLogout() {
   dropdownOpen.value = false

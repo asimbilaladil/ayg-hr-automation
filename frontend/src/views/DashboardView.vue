@@ -7,7 +7,7 @@
     </div>
 
     <!-- Stats cards -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
       <div v-for="stat in stats" :key="stat.label" class="card p-5">
         <div class="flex items-start justify-between">
           <div>
@@ -22,6 +22,43 @@
           </div>
         </div>
         <p v-if="stat.sub" class="text-xs text-gray-400 mt-2">{{ stat.sub }}</p>
+      </div>
+    </div>
+
+    <!-- Today's Appointments full-width card -->
+    <div class="card">
+      <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+        <div class="flex items-center gap-3">
+          <h3 class="font-semibold text-gray-900">Today's Interviews</h3>
+          <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold"
+            :class="todayAppointments.length ? 'bg-brand-100 text-brand-700' : 'bg-gray-100 text-gray-500'"
+          >{{ todayAppointments.length }}</span>
+        </div>
+        <RouterLink to="/appointments" class="text-sm text-brand-600 hover:text-brand-700 font-medium">View all →</RouterLink>
+      </div>
+      <div class="divide-y divide-gray-50">
+        <div v-if="loading" v-for="i in 3" :key="i" class="px-5 py-3 animate-pulse">
+          <div class="h-4 bg-gray-200 rounded w-3/4 mb-1" />
+          <div class="h-3 bg-gray-100 rounded w-1/2" />
+        </div>
+        <div
+          v-else-if="todayAppointments.length"
+          v-for="a in todayAppointments"
+          :key="a.id"
+          class="px-5 py-3 flex items-center justify-between"
+        >
+          <div class="flex items-center gap-3 min-w-0">
+            <div class="w-9 h-9 rounded-lg bg-brand-50 flex flex-col items-center justify-center flex-shrink-0">
+              <span class="text-xs font-bold text-brand-700 leading-none">{{ a.startTime }}</span>
+            </div>
+            <div class="min-w-0">
+              <p class="text-sm font-medium text-gray-900 truncate">{{ a.candidate_rel?.name || a.candidateName }}</p>
+              <p class="text-xs text-gray-500 truncate">{{ a.location_rel?.name || a.location }} · {{ a.startTime }}–{{ a.endTime }}</p>
+            </div>
+          </div>
+          <span class="ml-3 flex-shrink-0 text-xs font-medium text-green-700 bg-green-50 px-2 py-1 rounded-lg">Today</span>
+        </div>
+        <div v-else class="px-5 py-8 text-center text-sm text-gray-400">No interviews scheduled for today</div>
       </div>
     </div>
 
@@ -75,12 +112,12 @@
           >
             <div class="flex items-center justify-between">
               <div class="min-w-0">
-                <p class="text-sm font-medium text-gray-900 truncate">{{ a.candidateName }}</p>
-                <p class="text-xs text-gray-500 truncate">{{ a.jobRole || a.location }} · {{ a.startTime }}–{{ a.endTime }}</p>
+                <p class="text-sm font-medium text-gray-900 truncate">{{ a.candidate_rel?.name || a.candidateName }}</p>
+                <p class="text-xs text-gray-500 truncate">{{ a.location_rel?.name || a.location }} · {{ a.startTime }}–{{ a.endTime }}</p>
               </div>
               <div class="ml-3 flex-shrink-0 text-right">
                 <p class="text-xs font-medium text-gray-700">{{ formatDate(a.interviewDate) }}</p>
-                <p class="text-xs text-gray-400">{{ a.managerName || '—' }}</p>
+                <p class="text-xs text-gray-400">{{ a.manager_rel?.name || '—' }}</p>
               </div>
             </div>
           </div>
@@ -137,6 +174,13 @@ const pendingCandidates = computed(() => candidates.value.filter(c => c.status =
 const reviewedCandidates = computed(() => candidates.value.filter(c => c.status === 'reviewed').length)
 const totalAppointments = computed(() => appointments.value.length)
 
+const todayAppointments = computed(() => {
+  const today = new Date().toDateString()
+  return [...appointments.value]
+    .filter(a => new Date(a.interviewDate).toDateString() === today)
+    .sort((a, b) => a.startTime.localeCompare(b.startTime))
+})
+
 const recentCandidates = computed(() =>
   [...candidates.value]
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
@@ -145,7 +189,7 @@ const recentCandidates = computed(() =>
 
 const upcomingAppointments = computed(() =>
   [...appointments.value]
-    .filter(a => new Date(a.interviewDate) >= new Date())
+    .filter(a => new Date(a.interviewDate) > new Date())
     .sort((a, b) => new Date(a.interviewDate) - new Date(b.interviewDate))
     .slice(0, 6)
 )
@@ -184,12 +228,16 @@ const CheckIcon = { render: () => h('svg', { fill: 'none', stroke: 'currentColor
 const CalIcon = { render: () => h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
   h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' })
 ]) }
+const TodayIcon = { render: () => h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [
+  h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' })
+]) }
 
 const stats = computed(() => [
   { label: 'Total Candidates', value: totalCandidates.value, icon: PeopleIcon, iconBg: 'bg-blue-50', iconColor: 'text-blue-600', sub: 'All time' },
   { label: 'Pending Review', value: pendingCandidates.value, icon: ClockIcon, iconBg: 'bg-yellow-50', iconColor: 'text-yellow-600', sub: 'Awaiting AI analysis' },
   { label: 'Reviewed', value: reviewedCandidates.value, icon: CheckIcon, iconBg: 'bg-green-50', iconColor: 'text-green-600', sub: 'AI scored' },
-  { label: 'Appointments', value: totalAppointments.value, icon: CalIcon, iconBg: 'bg-brand-50', iconColor: 'text-brand-600', sub: 'Scheduled' },
+  { label: 'Total Appointments', value: totalAppointments.value, icon: CalIcon, iconBg: 'bg-brand-50', iconColor: 'text-brand-600', sub: 'Scheduled' },
+  { label: "Today's Interviews", value: todayAppointments.value.length, icon: TodayIcon, iconBg: 'bg-purple-50', iconColor: 'text-purple-600', sub: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) },
 ])
 
 function formatDate(d) {

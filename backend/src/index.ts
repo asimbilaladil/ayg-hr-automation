@@ -15,6 +15,7 @@ import availabilityRoutes from './routes/availability';
 import userRoutes from './routes/users';
 import locationRoutes from './routes/locations.routes';
 import postingsRoutes from './routes/postings.routes';
+import notificationRoutes from './routes/notifications';
 
 const app = express();
 
@@ -44,6 +45,7 @@ app.use('/api/availability', availabilityRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/locations', locationRoutes);
 app.use('/api/postings', postingsRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // ── 404 handler ──────────────────────────────────────────────────────────────
 app.use((_req, res) => res.status(404).json({ error: 'Route not found' }));

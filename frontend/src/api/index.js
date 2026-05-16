@@ -86,4 +86,11 @@ export const usersApi = {
   deleteManager: (id) => api.delete(`/api/users/${id}`),
 }
 
+// ── Notifications ─────────────────────────────────────────────────────────────
+export const notificationsApi = {
+  list: () => api.get('/api/notifications'),
+  markAllRead: () => api.patch('/api/notifications/read-all'),
+  markOneRead: (id) => api.patch(`/api/notifications/${id}/read`),
+}
+
 export default api

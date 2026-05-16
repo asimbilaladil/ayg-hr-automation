@@ -1,5 +1,6 @@
 import { prisma } from "../lib/prisma";
 import { CreateAppointmentInput, UpdateAppointmentInput } from "../schemas/appointment.schema";
+import { createNotification } from "./notifications.service";
 
 export class AppointmentService {
 
@@ -111,6 +112,19 @@ export class AppointmentService {
         ...(postingId && { postingId }),
       },
     });
+
+    // ── 8. Notify the manager ────────────────────────────────────────────────
+    if (managerId) {
+      const dateStr = new Date(`${interviewDate}T12:00:00`).toLocaleDateString('en-GB', {
+        day: '2-digit', month: 'short', year: 'numeric',
+      });
+      createNotification(
+        managerId,
+        'New Interview Booked',
+        `${appointment.candidate_rel.name} – ${dateStr} at ${startTime} · ${location.name}`,
+        { appointmentId: appointment.id, candidateId: candidate.id },
+      ).catch(() => {}); // non-blocking
+    }
 
     return appointment;
   }
