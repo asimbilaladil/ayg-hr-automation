@@ -103,16 +103,17 @@ export async function listCandidates(
 
   if (aiRecommendation) where.aiRecommendation = aiRecommendation;
 
-  if (location) {
-    const locationRecord = await prisma.location.findFirst({
+  if (location && location.length > 0) {
+    const locationRecords = await prisma.location.findMany({
       where: {
-        OR: [
-          { id: location },
-          { name: { contains: location, mode: 'insensitive' } },
-        ],
+        OR: location.flatMap(loc => [
+          { id: loc },
+          { name: { contains: loc, mode: 'insensitive' } },
+        ]),
       },
     });
-    if (locationRecord) where.locationId = locationRecord.id;
+    const ids = locationRecords.map(l => l.id);
+    if (ids.length > 0) where.locationId = { in: ids };
     else where.locationId = null; // no match → return empty
   }
 
