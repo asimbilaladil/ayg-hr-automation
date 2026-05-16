@@ -113,18 +113,28 @@ export class AppointmentService {
       },
     });
 
-    // ── 8. Notify the manager ────────────────────────────────────────────────
-    if (managerId) {
-      const dateStr = new Date(`${interviewDate}T12:00:00`).toLocaleDateString('en-GB', {
-        day: '2-digit', month: 'short', year: 'numeric',
-      });
-      createNotification(
-        managerId,
-        'New Interview Booked',
-        `${appointment.candidate_rel.name} – ${dateStr} at ${startTime} · ${location.name}`,
-        { appointmentId: appointment.id, candidateId: candidate.id },
-      ).catch(() => {}); // non-blocking
-    }
+    // ── 8. Notify the manager + all HR and ADMIN users ──────────────────────
+    const dateStr = new Date(`${interviewDate}T12:00:00`).toLocaleDateString('en-GB', {
+      day: '2-digit', month: 'short', year: 'numeric',
+    });
+    const notifBody = `${appointment.candidate_rel.name} – ${dateStr} at ${startTime} · ${location.name}`;
+    const metadata = { appointmentId: appointment.id, candidateId: candidate.id };
+
+    const hrAdminUsers = await prisma.user.findMany({
+      where: { role: { in: ['HR', 'ADMIN'] }, isActive: true },
+      select: { id: true },
+    });
+
+    const recipientIds = new Set<string>([
+      ...hrAdminUsers.map(u => u.id),
+      ...(managerId ? [managerId] : []),
+    ]);
+
+    Promise.all(
+      [...recipientIds].map(userId =>
+        createNotification(userId, 'New Interview Booked', notifBody, metadata)
+      )
+    ).catch(() => {}); // non-blocking
 
     return appointment;
   }
