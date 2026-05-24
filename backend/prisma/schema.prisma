@@ -48,6 +48,7 @@ model Notification {
 model Location {
   id       String  @id @default(cuid())
   name     String  @unique
+  address  String?
   isActive Boolean @default(true)
 
   // ✅ Manager assigned to this location

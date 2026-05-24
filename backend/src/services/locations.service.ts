@@ -2,12 +2,15 @@ import { prisma } from '../lib/prisma';
 import {
   CreateLocationInput,
   UpdateLocationInput,
+  UpdateLocationAddressInput,
 } from '../schemas/location.schema';
 
-export async function listLocations() {
+export async function listLocations(managerId?: string) {
   return prisma.location.findMany({
+    where: managerId ? { managerId } : undefined,
     orderBy: { name: 'asc' },
     include: {
+      manager: { select: { id: true, name: true, email: true } },
       _count: {
         select: {
           candidates: true,
@@ -23,6 +26,7 @@ export async function getLocationById(id: string) {
   const location = await prisma.location.findUnique({
     where: { id },
     include: {
+      manager: { select: { id: true, name: true, email: true } },
       _count: {
         select: {
           candidates: true,
@@ -54,6 +58,7 @@ export async function createLocation(data: CreateLocationInput) {
   return prisma.location.create({
     data: {
       name: data.name,
+      address: data.address,
       isActive: data.isActive ?? true,
     },
   });
@@ -84,6 +89,14 @@ export async function updateLocation(id: string, data: UpdateLocationInput) {
     where: { id },
     data,
   });
+}
+
+export async function updateLocationAddress(id: string, managerId: string, data: UpdateLocationAddressInput) {
+  const location = await prisma.location.findUnique({ where: { id } });
+  if (!location) throw new Error('NOT_FOUND');
+  if (location.managerId !== managerId) throw new Error('FORBIDDEN');
+
+  return prisma.location.update({ where: { id }, data: { address: data.address } });
 }
 
 export async function deleteLocation(id: string) {

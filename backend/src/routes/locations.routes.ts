@@ -5,11 +5,15 @@ import * as ctrl from '../controllers/locations.controller';
 
 const router = Router();
 
-// Admin-only endpoints for location management
-router.get('/', auth, rbac('ADMIN'), ctrl.list);
-router.get('/:id', auth, rbac('ADMIN'), ctrl.getById);
+// All authenticated roles can read; controller filters by role
+router.get('/', auth, rbac('HR'), ctrl.list);
+router.get('/:id', auth, rbac('HR'), ctrl.getById);
+
+// All roles can update (MANAGER restricted to address-only on their location)
+router.patch('/:id', auth, rbac('HR'), ctrl.update);
+
+// Create and delete are ADMIN-only
 router.post('/', auth, rbac('ADMIN'), ctrl.create);
-router.patch('/:id', auth, rbac('ADMIN'), ctrl.update);
 router.delete('/:id', auth, rbac('ADMIN'), ctrl.remove);
 
 export default router;

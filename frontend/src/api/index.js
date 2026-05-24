@@ -86,6 +86,14 @@ export const usersApi = {
   deleteManager: (id) => api.delete(`/api/users/${id}`),
 }
 
+// ── Locations ────────────────────────────────────────────────────────────────
+export const locationsApi = {
+  list: () => api.get('/api/locations'),
+  create: (data) => api.post('/api/locations', data),
+  update: (id, data) => api.patch(`/api/locations/${id}`, data),
+  remove: (id) => api.delete(`/api/locations/${id}`),
+}
+
 // ── Notifications ─────────────────────────────────────────────────────────────
 export const notificationsApi = {
   list: () => api.get('/api/notifications'),
