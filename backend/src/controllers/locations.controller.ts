@@ -53,6 +53,15 @@ export async function update(req: Request, res: Response, next: NextFunction) {
   }
 }
 
+export async function getAddress(req: Request, res: Response, next: NextFunction) {
+  try {
+    const location = await service.getLocationById(req.params.id);
+    res.json({ id: location.id, name: location.name, address: location.address ?? null });
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function remove(req: Request, res: Response, next: NextFunction) {
   try {
     await service.deleteLocation(req.params.id);

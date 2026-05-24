@@ -7,6 +7,7 @@ const router = Router();
 
 // All authenticated roles can read; controller filters by role
 router.get('/', auth, rbac('HR'), ctrl.list);
+router.get('/:id/address', auth, rbac('HR'), ctrl.getAddress);
 router.get('/:id', auth, rbac('HR'), ctrl.getById);
 
 // All roles can update (MANAGER restricted to address-only on their location)
