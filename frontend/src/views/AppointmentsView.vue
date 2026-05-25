@@ -1,9 +1,21 @@
 <template>
   <div class="space-y-4">
     <!-- Header -->
-    <div>
-      <h2 class="text-xl font-bold text-gray-900">Appointments</h2>
-      <p class="text-sm text-gray-500 mt-0.5">{{ total }} total appointments</p>
+    <div class="flex items-start justify-between gap-4">
+      <div>
+        <h2 class="text-xl font-bold text-gray-900">Appointments</h2>
+        <p class="text-sm text-gray-500 mt-0.5">{{ total }} total appointments</p>
+      </div>
+      <button
+        v-if="selectedIds.size > 0"
+        class="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors"
+        @click="openBulkCancel"
+      >
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+        Cancel Selected ({{ selectedIds.size }})
+      </button>
     </div>
 
     <!-- Filters -->
@@ -34,6 +46,15 @@
         <table class="w-full text-sm">
           <thead class="bg-gray-50 border-b border-gray-200">
             <tr>
+              <th v-if="hasCancelableRows" class="px-4 py-3 w-10">
+                <input
+                  type="checkbox"
+                  class="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                  :checked="allCancelableSelected"
+                  :indeterminate.prop="someSelected && !allCancelableSelected"
+                  @change="toggleSelectAll"
+                />
+              </th>
               <th class="text-left px-4 py-3 font-semibold text-gray-600">Candidate</th>
               <th class="text-left px-4 py-3 font-semibold text-gray-600">Job Role</th>
               <th class="text-left px-4 py-3 font-semibold text-gray-600">Location</th>
@@ -41,17 +62,17 @@
               <th class="text-left px-4 py-3 font-semibold text-gray-600">Time</th>
               <th class="text-left px-4 py-3 font-semibold text-gray-600">Manager</th>
               <th class="text-left px-4 py-3 font-semibold text-gray-600">Status</th>
-              <th v-if="auth.isManager" class="px-4 py-3"></th>
+              <th v-if="hasAnyAction" class="px-4 py-3"></th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100">
             <tr v-if="loading" v-for="i in 6" :key="i">
-              <td colspan="8" class="px-4 py-3">
+              <td :colspan="colSpan" class="px-4 py-3">
                 <div class="animate-pulse h-4 bg-gray-100 rounded" />
               </td>
             </tr>
             <tr v-else-if="!appointments.length">
-              <td colspan="8" class="px-4 py-12 text-center text-gray-400">
+              <td :colspan="colSpan" class="px-4 py-12 text-center text-gray-400">
                 <svg class="w-10 h-10 mx-auto mb-2 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
@@ -63,7 +84,19 @@
               v-for="a in appointments"
               :key="a.id"
               class="hover:bg-gray-50 transition-colors"
+              :class="{ 'bg-red-50': selectedIds.has(a.id) }"
             >
+              <!-- Checkbox cell -->
+              <td v-if="hasCancelableRows" class="px-4 py-3">
+                <input
+                  v-if="canCancel(a)"
+                  type="checkbox"
+                  class="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                  :checked="selectedIds.has(a.id)"
+                  @change="toggleSelect(a.id)"
+                />
+              </td>
+
               <td class="px-4 py-3">
                 <p class="font-medium text-gray-900">{{ a.candidateName }}</p>
               </td>
@@ -80,19 +113,21 @@
               <td class="px-4 py-3">
                 <StatusBadge status="scheduled" />
               </td>
-              <td v-if="auth.isManager" class="px-4 py-3">
+              <td v-if="hasAnyAction" class="px-4 py-3">
                 <div class="flex items-center gap-2">
                   <button
+                    v-if="canEdit(a)"
                     class="text-xs text-gray-500 hover:text-brand-600 border border-gray-200 hover:border-brand-300 px-2 py-1 rounded transition-colors"
                     @click="openEdit(a)"
                   >
                     Edit
                   </button>
                   <button
+                    v-if="canCancel(a)"
                     class="text-xs text-gray-500 hover:text-red-600 border border-gray-200 hover:border-red-300 px-2 py-1 rounded transition-colors"
-                    @click="confirmDelete(a)"
+                    @click="confirmCancel(a)"
                   >
-                    Delete
+                    Cancel
                   </button>
                 </div>
               </td>
@@ -160,15 +195,63 @@
       </div>
     </Teleport>
 
-    <!-- Delete confirm -->
-    <ConfirmDialog
-      v-model="deleteModal"
-      title="Delete appointment?"
-      message="This appointment will be permanently deleted."
-      confirm-text="Delete"
-      :loading="deleting"
-      @confirm="doDelete"
-    />
+    <!-- Cancel modal (single + bulk) -->
+    <Teleport to="body">
+      <div v-if="cancelModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/40" @click="cancelModal = false" />
+        <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+              <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </div>
+            <div>
+              <h3 class="text-base font-semibold text-gray-900">
+                {{ cancelIsBulk ? `Cancel ${selectedIds.size} appointments?` : 'Cancel appointment?' }}
+              </h3>
+              <p class="text-sm text-gray-500 mt-0.5">
+                {{ cancelIsBulk
+                  ? `${selectedIds.size} candidate${selectedIds.size !== 1 ? 's' : ''} will be marked as cancelled.`
+                  : `${cancelTarget?.candidateName || 'This candidate'} will be marked as cancelled.` }}
+              </p>
+            </div>
+          </div>
+
+          <div class="mb-5">
+            <label class="label mb-1">
+              Reason for cancellation <span class="text-red-500">*</span>
+            </label>
+            <textarea
+              v-model="cancelReason"
+              class="input resize-none"
+              rows="3"
+              placeholder="e.g. Manager unavailable on the scheduled date, please reschedule…"
+              autofocus
+            />
+            <p class="text-xs text-gray-400 mt-1">The AI will use this reason when calling the candidate to reschedule.</p>
+            <p v-if="cancelReasonError" class="text-xs text-red-600 mt-1">{{ cancelReasonError }}</p>
+          </div>
+
+          <div class="flex gap-3 justify-end">
+            <button class="btn-secondary" @click="cancelModal = false" :disabled="cancelling || bulkCancelling">
+              Close
+            </button>
+            <button
+              class="btn-danger flex items-center gap-2"
+              :disabled="cancelling || bulkCancelling"
+              @click="cancelIsBulk ? doBulkCancel() : doCancel()"
+            >
+              <svg v-if="cancelling || bulkCancelling" class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+              {{ cancelIsBulk ? `Cancel ${selectedIds.size} appointments` : 'Cancel appointment' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -177,7 +260,6 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { appointmentsApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import StatusBadge from '@/components/shared/StatusBadge.vue'
-import ConfirmDialog from '@/components/shared/ConfirmDialog.vue'
 
 const auth = useAuthStore()
 const loading = ref(false)
@@ -190,6 +272,33 @@ const filters = reactive({ location: '', date: '', managerEmail: '' })
 
 const totalPages = computed(() => Math.ceil(total.value / limit))
 
+// ── Role helpers ───────────────────────────────────────────────────────────
+function canCancel(a) {
+  const role = auth.user?.role
+  if (role === 'ADMIN' || role === 'HR') return true
+  if (role === 'MANAGER') return a.managerId === auth.user?.id
+  return false
+}
+
+function canEdit(a) {
+  const role = auth.user?.role
+  if (role === 'ADMIN') return true
+  if (role === 'MANAGER') return a.managerId === auth.user?.id
+  return false
+}
+
+const hasCancelableRows = computed(() => appointments.value.some(canCancel))
+const hasAnyAction = computed(() => appointments.value.some(a => canCancel(a) || canEdit(a)))
+
+// ── Column span ────────────────────────────────────────────────────────────
+const colSpan = computed(() => {
+  let cols = 8 // base columns
+  if (hasCancelableRows.value) cols++
+  if (hasAnyAction.value) cols++
+  return cols
+})
+
+// ── Filters & fetch ────────────────────────────────────────────────────────
 let searchTimer = null
 function onSearch() {
   clearTimeout(searchTimer)
@@ -217,6 +326,7 @@ function normalizeAppointment(a) {
 
 async function fetchData() {
   loading.value = true
+  selectedIds.value = new Set()
   try {
     const params = { page: page.value, limit }
     if (filters.location) params.location = filters.location
@@ -249,7 +359,31 @@ function formatTime(t) {
   return `${h}:${m} ${period}`
 }
 
-// Edit
+// ── Checkbox selection ─────────────────────────────────────────────────────
+const selectedIds = ref(new Set())
+
+const cancelableIds = computed(() => appointments.value.filter(canCancel).map(a => a.id))
+const allCancelableSelected = computed(() =>
+  cancelableIds.value.length > 0 && cancelableIds.value.every(id => selectedIds.value.has(id))
+)
+const someSelected = computed(() => selectedIds.value.size > 0)
+
+function toggleSelect(id) {
+  const s = new Set(selectedIds.value)
+  if (s.has(id)) s.delete(id)
+  else s.add(id)
+  selectedIds.value = s
+}
+
+function toggleSelectAll() {
+  if (allCancelableSelected.value) {
+    selectedIds.value = new Set()
+  } else {
+    selectedIds.value = new Set(cancelableIds.value)
+  }
+}
+
+// ── Edit ──────────────────────────────────────────────────────────────────
 const editModal = ref(false)
 const editTarget = ref(null)
 const saving = ref(false)
@@ -289,27 +423,68 @@ async function saveEdit() {
   }
 }
 
-// Delete
-const deleteModal = ref(false)
-const deleteTarget = ref(null)
-const deleting = ref(false)
+// ── Cancel (single + bulk share one modal) ────────────────────────────────
+const cancelModal = ref(false)
+const cancelIsBulk = ref(false)
+const cancelTarget = ref(null)
+const cancelReason = ref('')
+const cancelReasonError = ref('')
+const cancelling = ref(false)
+const bulkCancelling = ref(false)
 
-function confirmDelete(a) {
-  deleteTarget.value = a
-  deleteModal.value = true
+function confirmCancel(a) {
+  cancelTarget.value = a
+  cancelIsBulk.value = false
+  cancelReason.value = ''
+  cancelReasonError.value = ''
+  cancelModal.value = true
 }
 
-async function doDelete() {
-  deleting.value = true
+function openBulkCancel() {
+  cancelIsBulk.value = true
+  cancelReason.value = ''
+  cancelReasonError.value = ''
+  cancelModal.value = true
+}
+
+async function doCancel() {
+  if (!cancelReason.value.trim()) {
+    cancelReasonError.value = 'Please enter a reason for cancellation.'
+    return
+  }
+  cancelling.value = true
   try {
-    await appointmentsApi.remove(deleteTarget.value.id)
-    appointments.value = appointments.value.filter(a => a.id !== deleteTarget.value.id)
+    await appointmentsApi.cancel(cancelTarget.value.id, cancelReason.value.trim())
+    appointments.value = appointments.value.filter(a => a.id !== cancelTarget.value.id)
+    const s = new Set(selectedIds.value)
+    s.delete(cancelTarget.value.id)
+    selectedIds.value = s
     total.value = Math.max(0, total.value - 1)
-    deleteModal.value = false
+    cancelModal.value = false
   } catch (err) {
     console.error(err)
   } finally {
-    deleting.value = false
+    cancelling.value = false
+  }
+}
+
+async function doBulkCancel() {
+  if (!cancelReason.value.trim()) {
+    cancelReasonError.value = 'Please enter a reason for cancellation.'
+    return
+  }
+  bulkCancelling.value = true
+  try {
+    const ids = [...selectedIds.value]
+    await appointmentsApi.bulkCancel(ids, cancelReason.value.trim())
+    appointments.value = appointments.value.filter(a => !selectedIds.value.has(a.id))
+    total.value = Math.max(0, total.value - ids.length)
+    selectedIds.value = new Set()
+    cancelModal.value = false
+  } catch (err) {
+    console.error(err)
+  } finally {
+    bulkCancelling.value = false
   }
 }
 

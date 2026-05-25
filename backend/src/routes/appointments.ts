@@ -14,4 +14,8 @@ router.get('/:id', auth, rbac('HR'), ctrl.getById);
 router.patch('/:id', auth, rbac('MANAGER'), ctrl.update);
 router.delete('/:id', auth, rbac('MANAGER'), ctrl.remove);
 
+// Cancel endpoints (HR+ can cancel any; MANAGER scoped in controller)
+router.post('/bulk-cancel', auth, rbac('HR'), ctrl.bulkCancel);
+router.delete('/:id/cancel', auth, rbac('HR'), ctrl.cancel);
+
 export default router;

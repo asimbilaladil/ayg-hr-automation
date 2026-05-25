@@ -91,6 +91,10 @@ model Candidate {
   // Interview answers as JSON array [{question, category, answer}]
   interviewAnswers  String?
 
+  // Appointment cancellation
+  cancelReason      String?
+  cancelledAt       DateTime?
+
   posting_rel     Posting  @relation(fields: [postingId], references: [id])
   postingId       String
 

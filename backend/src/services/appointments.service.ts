@@ -198,6 +198,35 @@ export class AppointmentService {
   static async delete(id: string) {
     return prisma.appointment.delete({ where: { id } });
   }
+
+  static async cancelOne(id: string, reason: string) {
+    const appt = await prisma.appointment.findUnique({ where: { id }, select: { candidateId: true } });
+    if (!appt) throw new Error('Appointment not found');
+    await prisma.appointment.delete({ where: { id } });
+    await prisma.candidate.update({
+      where: { id: appt.candidateId },
+      data: { status: 'cancelled', cancelReason: reason, cancelledAt: new Date() },
+    });
+  }
+
+  static async bulkCancel(ids: string[], reason: string) {
+    const appts = await prisma.appointment.findMany({
+      where: { id: { in: ids } },
+      select: { candidateId: true },
+    });
+    await prisma.appointment.deleteMany({ where: { id: { in: ids } } });
+    const candidateIds = appts.map(a => a.candidateId);
+    if (candidateIds.length > 0) {
+      await prisma.candidate.updateMany({
+        where: { id: { in: candidateIds } },
+        data: { status: 'cancelled', cancelReason: reason, cancelledAt: new Date() },
+      });
+    }
+  }
+
+  static async findManyByIds(ids: string[]) {
+    return prisma.appointment.findMany({ where: { id: { in: ids } }, select: { id: true, managerId: true } });
+  }
 }
 
 // backward compatibility for controllers
@@ -206,3 +235,6 @@ export const getAppointmentById = AppointmentService.findById;
 export const createAppointment = AppointmentService.create;
 export const updateAppointment = AppointmentService.update;
 export const deleteAppointment = AppointmentService.delete;
+export const cancelAppointment = AppointmentService.cancelOne;
+export const bulkCancelAppointments = AppointmentService.bulkCancel;
+export const findAppointmentsByIds = AppointmentService.findManyByIds;

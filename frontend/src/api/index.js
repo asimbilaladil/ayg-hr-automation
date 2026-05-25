@@ -51,6 +51,8 @@ export const appointmentsApi = {
   getById: (id) => api.get(`/api/appointments/${id}`),
   update: (id, data) => api.patch(`/api/appointments/${id}`, data),
   remove: (id) => api.delete(`/api/appointments/${id}`),
+  cancel: (id, reason) => api.delete(`/api/appointments/${id}/cancel`, { data: { reason } }),
+  bulkCancel: (ids, reason) => api.post('/api/appointments/bulk-cancel', { ids, reason }),
 }
 
 // ── Availability ─────────────────────────────────────────────────────────────
