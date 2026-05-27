@@ -1,6 +1,7 @@
 import { prisma } from "../lib/prisma";
 import { CreateAppointmentInput, UpdateAppointmentInput } from "../schemas/appointment.schema";
 import { createNotification } from "./notifications.service";
+import { sendAppointmentSms } from "./sms.service";
 
 export class AppointmentService {
 
@@ -135,6 +136,20 @@ export class AppointmentService {
         createNotification(userId, 'New Interview Booked', notifBody, metadata)
       )
     ).catch(() => {}); // non-blocking
+
+    // ── 9. SMS the candidate ────────────────────────────────────────────────
+    if (candidate.phone) {
+      const jobRole = appointment.candidate_rel.posting_rel?.name ?? 'the position';
+      sendAppointmentSms({
+        toPhone: candidate.phone,
+        candidateName: candidate.name,
+        date: dateStr,
+        time: startTime,
+        locationName: location.name,
+        locationAddress: location.address,
+        jobRole,
+      }).catch((err: any) => console.error('[SMS] Failed to send appointment SMS:', err.message));
+    }
 
     return appointment;
   }
