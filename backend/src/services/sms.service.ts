@@ -31,3 +31,26 @@ export async function sendAppointmentSms(params: {
 
   await client.messages.create({ body, from: fromNumber, to: toPhone });
 }
+
+export async function sendCancellationSms(params: {
+  toPhone: string;
+  candidateName: string;
+  reason: string;
+}): Promise<void> {
+  if (!accountSid || !authToken || !fromNumber) {
+    console.warn('[SMS] Twilio env vars missing — skipping cancellation SMS');
+    return;
+  }
+
+  const { toPhone, candidateName, reason } = params;
+
+  const firstName = candidateName.split(' ')[0];
+  const body =
+    `Hello ${firstName}, your interview appointment has been cancelled.\n` +
+    `Reason: ${reason}\n` +
+    `To reschedule, please call us at ${fromNumber} and we will arrange a new time for you.`;
+
+  const client = twilio(accountSid, authToken);
+
+  await client.messages.create({ body, from: fromNumber, to: toPhone });
+}

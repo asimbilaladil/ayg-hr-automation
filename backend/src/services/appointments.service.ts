@@ -1,7 +1,7 @@
 import { prisma } from "../lib/prisma";
 import { CreateAppointmentInput, UpdateAppointmentInput } from "../schemas/appointment.schema";
 import { createNotification } from "./notifications.service";
-import { sendAppointmentSms } from "./sms.service";
+import { sendAppointmentSms, sendCancellationSms } from "./sms.service";
 
 export class AppointmentService {
 
@@ -218,10 +218,14 @@ export class AppointmentService {
     const appt = await prisma.appointment.findUnique({ where: { id }, select: { candidateId: true } });
     if (!appt) throw new Error('Appointment not found');
     await prisma.appointment.delete({ where: { id } });
-    await prisma.candidate.update({
+    const candidate = await prisma.candidate.update({
       where: { id: appt.candidateId },
       data: { status: 'cancelled', cancelReason: reason, cancelledAt: new Date() },
     });
+    if (candidate.phone) {
+      sendCancellationSms({ toPhone: candidate.phone, candidateName: candidate.name, reason })
+        .catch((err: any) => console.error('[SMS] Failed to send cancellation SMS:', err.message));
+    }
   }
 
   static async bulkCancel(ids: string[], reason: string) {
@@ -235,6 +239,14 @@ export class AppointmentService {
       await prisma.candidate.updateMany({
         where: { id: { in: candidateIds } },
         data: { status: 'cancelled', cancelReason: reason, cancelledAt: new Date() },
+      });
+      const candidates = await prisma.candidate.findMany({
+        where: { id: { in: candidateIds }, phone: { not: null } },
+        select: { name: true, phone: true },
+      });
+      candidates.forEach(c => {
+        sendCancellationSms({ toPhone: c.phone!, candidateName: c.name, reason })
+          .catch((err: any) => console.error('[SMS] Failed to send bulk cancellation SMS:', err.message));
       });
     }
   }
