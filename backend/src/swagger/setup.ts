@@ -671,10 +671,17 @@ Internal HR Recruitment System — replaces Google Sheets + Excel workflows.
 };
 
 export function setupSwagger(app: Express) {
+  // Swagger UI needs inline scripts/styles — override Helmet's strict CSP for docs routes only
+  app.use('/api/docs', (_req, res, next) => {
+    res.setHeader(
+      'Content-Security-Policy',
+      "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' *",
+    );
+    next();
+  });
   app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openApiDoc, {
     customSiteTitle: 'HR Recruitment API',
     customCss: '.swagger-ui .topbar { display: none }',
   }));
-  // Also expose raw JSON
   app.get('/api/docs.json', (_req, res) => res.json(openApiDoc));
 }
