@@ -113,6 +113,37 @@ Internal HR Recruitment System — replaces Google Sheets + Excel workflows.
           location: { type: 'string' },
         },
       },
+      Location: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          name: { type: 'string' },
+          address: { type: 'string', nullable: true },
+          createdAt: { type: 'string', format: 'date-time' },
+          updatedAt: { type: 'string', format: 'date-time' },
+        },
+      },
+      Posting: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          title: { type: 'string' },
+          locationId: { type: 'string', nullable: true },
+          active: { type: 'boolean' },
+          createdAt: { type: 'string', format: 'date-time' },
+          updatedAt: { type: 'string', format: 'date-time' },
+        },
+      },
+      Notification: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          userId: { type: 'string' },
+          message: { type: 'string' },
+          read: { type: 'boolean' },
+          createdAt: { type: 'string', format: 'date-time' },
+        },
+      },
       Error: {
         type: 'object',
         properties: {
@@ -414,6 +445,226 @@ Internal HR Recruitment System — replaces Google Sheets + Excel workflows.
         security: [{ BearerAuth: [] }],
         parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
         responses: { 200: { description: 'Deactivated user' } },
+      },
+    },
+    '/auth/login': {
+      post: {
+        tags: ['Auth'],
+        summary: 'Login and receive JWT token',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['email', 'password'],
+                properties: {
+                  email: { type: 'string', format: 'email', example: 'admin@aygfoods.com' },
+                  password: { type: 'string', example: 'ChangeMe123!' },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: 'Login successful',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    user: {
+                      type: 'object',
+                      properties: {
+                        id: { type: 'string' },
+                        email: { type: 'string' },
+                        name: { type: 'string' },
+                        role: { type: 'string', enum: ['ADMIN', 'MANAGER', 'HR'] },
+                      },
+                    },
+                    token: { type: 'string' },
+                  },
+                },
+              },
+            },
+          },
+          401: { description: 'Invalid credentials' },
+        },
+      },
+    },
+    '/locations': {
+      get: {
+        tags: ['Locations'],
+        summary: 'List all locations (HR+)',
+        security: [{ BearerAuth: [] }],
+        responses: { 200: { description: 'Location list', content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/Location' } } } } } },
+      },
+      post: {
+        tags: ['Locations'],
+        summary: 'Create location (ADMIN)',
+        security: [{ BearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['name'],
+                properties: {
+                  name: { type: 'string', example: 'LCF Airtex' },
+                  address: { type: 'string', example: '1234 Main St, Houston TX' },
+                },
+              },
+            },
+          },
+        },
+        responses: { 201: { description: 'Created location' } },
+      },
+    },
+    '/locations/{id}': {
+      get: {
+        tags: ['Locations'],
+        summary: 'Get location by id (HR+)',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { 200: { description: 'Location' }, 404: { description: 'Not found' } },
+      },
+      patch: {
+        tags: ['Locations'],
+        summary: 'Update location (MANAGER can edit address only)',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  name: { type: 'string' },
+                  address: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+        responses: { 200: { description: 'Updated location' } },
+      },
+      delete: {
+        tags: ['Locations'],
+        summary: 'Delete location (ADMIN)',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { 204: { description: 'Deleted' }, 403: { description: 'Forbidden' } },
+      },
+    },
+    '/locations/{id}/address': {
+      get: {
+        tags: ['Locations'],
+        summary: 'Get location address only (HR+)',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: {
+          200: {
+            description: 'Address',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: { id: { type: 'string' }, name: { type: 'string' }, address: { type: 'string', nullable: true } },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/postings': {
+      get: {
+        tags: ['Postings'],
+        summary: 'List postings (ADMIN)',
+        security: [{ BearerAuth: [] }],
+        responses: { 200: { description: 'Posting list', content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/Posting' } } } } } },
+      },
+      post: {
+        tags: ['Postings'],
+        summary: 'Create posting (ADMIN)',
+        security: [{ BearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['title'],
+                properties: {
+                  title: { type: 'string', example: 'LCF Cashier' },
+                  locationId: { type: 'string' },
+                  active: { type: 'boolean', default: true },
+                },
+              },
+            },
+          },
+        },
+        responses: { 201: { description: 'Created posting' } },
+      },
+    },
+    '/postings/list': {
+      get: {
+        tags: ['Postings'],
+        summary: 'List active postings (HR+)',
+        security: [{ BearerAuth: [] }],
+        responses: { 200: { description: 'Posting list' } },
+      },
+    },
+    '/postings/{id}': {
+      get: {
+        tags: ['Postings'],
+        summary: 'Get posting by id (ADMIN)',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { 200: { description: 'Posting' }, 404: { description: 'Not found' } },
+      },
+      patch: {
+        tags: ['Postings'],
+        summary: 'Update posting (ADMIN)',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object' } } } },
+        responses: { 200: { description: 'Updated posting' } },
+      },
+      delete: {
+        tags: ['Postings'],
+        summary: 'Delete posting (ADMIN)',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { 204: { description: 'Deleted' } },
+      },
+    },
+    '/notifications': {
+      get: {
+        tags: ['Notifications'],
+        summary: 'List notifications for current user',
+        security: [{ BearerAuth: [] }],
+        responses: { 200: { description: 'Notification list', content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/Notification' } } } } } },
+      },
+    },
+    '/notifications/read-all': {
+      patch: {
+        tags: ['Notifications'],
+        summary: 'Mark all notifications as read',
+        security: [{ BearerAuth: [] }],
+        responses: { 200: { description: 'All marked read' } },
+      },
+    },
+    '/notifications/{id}/read': {
+      patch: {
+        tags: ['Notifications'],
+        summary: 'Mark a single notification as read',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { 200: { description: 'Marked read' } },
       },
     },
   },
