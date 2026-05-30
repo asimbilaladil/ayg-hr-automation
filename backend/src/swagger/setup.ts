@@ -233,6 +233,15 @@ Internal HR Recruitment System — replaces Google Sheets + Excel workflows.
         responses: { 204: { description: 'Deleted' }, 403: { description: 'Forbidden' } },
       },
     },
+    '/candidates/by-phone/{phone}': {
+      get: {
+        tags: ['Candidates'],
+        summary: 'Get candidate by phone number (n8n / Vapi inbound call lookup)',
+        security: [{ ApiKeyAuth: [] }],
+        parameters: [{ name: 'phone', in: 'path', required: true, schema: { type: 'string' }, example: '5551234567' }],
+        responses: { 200: { description: 'Candidate', content: { 'application/json': { schema: { $ref: '#/components/schemas/Candidate' } } } }, 404: { description: 'Not found' } },
+      },
+    },
     '/candidates/by-email/{emailId}': {
       get: {
         tags: ['Candidates'],
@@ -349,9 +358,54 @@ Internal HR Recruitment System — replaces Google Sheets + Excel workflows.
       },
     },
     '/appointments/{id}': {
-      get: { tags: ['Appointments'], summary: 'Get appointment by id', security: [{ BearerAuth: [] }], parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }], responses: { 200: { description: 'Appointment' } } },
+      get: { tags: ['Appointments'], summary: 'Get appointment by id', security: [{ BearerAuth: [] }], parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }], responses: { 200: { description: 'Appointment', content: { 'application/json': { schema: { $ref: '#/components/schemas/Appointment' } } } } } },
       patch: { tags: ['Appointments'], summary: 'Edit appointment (MANAGER+)', security: [{ BearerAuth: [] }], parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }], requestBody: { required: true, content: { 'application/json': { schema: { type: 'object' } } } }, responses: { 200: { description: 'Updated' } } },
-      delete: { tags: ['Appointments'], summary: 'Cancel appointment (MANAGER+)', security: [{ BearerAuth: [] }], parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }], responses: { 204: { description: 'Cancelled' } } },
+    },
+    '/appointments/{id}/cancel': {
+      delete: {
+        tags: ['Appointments'],
+        summary: 'Cancel appointment with reason (HR+)',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['reason'],
+                properties: {
+                  reason: { type: 'string', example: 'Position filled' },
+                },
+              },
+            },
+          },
+        },
+        responses: { 200: { description: 'Cancelled — cancelReason and cancelledAt set on the appointment' } },
+      },
+    },
+    '/appointments/bulk-cancel': {
+      post: {
+        tags: ['Appointments'],
+        summary: 'Bulk cancel appointments with reason (HR+)',
+        security: [{ BearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['ids', 'reason'],
+                properties: {
+                  ids: { type: 'array', items: { type: 'string' }, example: ['id1', 'id2'] },
+                  reason: { type: 'string', example: 'Location closed' },
+                },
+              },
+            },
+          },
+        },
+        responses: { 200: { description: 'Cancelled count', content: { 'application/json': { schema: { type: 'object', properties: { cancelled: { type: 'integer' } } } } } } },
+      },
     },
     '/availability': {
       get: {
