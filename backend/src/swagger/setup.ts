@@ -84,6 +84,8 @@ Internal HR Recruitment System — replaces Google Sheets + Excel workflows.
           endTime: { type: 'string' },
           slotDuration: { type: 'string' },
           active: { type: 'boolean' },
+          cancelReason: { type: 'string', nullable: true },
+          cancelledAt: { type: 'string', format: 'date-time', nullable: true },
           createdAt: { type: 'string', format: 'date-time' },
         },
       },
