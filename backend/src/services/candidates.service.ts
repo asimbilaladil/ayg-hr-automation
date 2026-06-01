@@ -74,6 +74,7 @@ function flattenCandidate(candidate: any) {
     candidateName: candidate.name,
     postingName: candidate.posting_rel?.name || null,
     location: candidate.location_rel?.name || null,
+    locationAddress: candidate.location_rel?.address || null,
     hiringManager: candidate.hiringManager_rel?.name || null,
     recruiter: candidate.recruiter_rel?.name || null,
     // Remove the nested objects
@@ -100,6 +101,14 @@ export async function listCandidates(
   }
 
   if (status) where.status = status;
+
+  const nextCallAtBefore = (query as any).nextCallAtBefore;
+  if (nextCallAtBefore) {
+    where.OR = [
+      { nextCallAt: null },
+      { nextCallAt: { lte: new Date(nextCallAtBefore) } },
+    ];
+  }
 
   if (aiRecommendation) where.aiRecommendation = aiRecommendation;
 
@@ -454,13 +463,25 @@ export async function updateCallResult(emailId: string, data: any) {
   const existing = await prisma.candidate.findUnique({ where: { emailId } });
   if (!existing) throw new Error('NOT_FOUND');
 
+  const resolvedStatus = resolveCallStatus(data.status);
+  const now = new Date();
+  // Auto-set 1-hour cooldown when hitting voicemail (if caller didn't supply nextCallAt)
+  const nextCallAt = data.nextCallAt
+    ? new Date(data.nextCallAt)
+    : resolvedStatus === 'voicemail'
+      ? new Date(now.getTime() + 60 * 60 * 1000)
+      : undefined;
+
   const updated = await prisma.candidate.update({
     where: { emailId },
     data: {
-      ...(existing.status !== 'interview-booked' && { status: resolveCallStatus(data.status) }),
+      ...(existing.status !== 'interview-booked' && { status: resolvedStatus }),
       ...(data.transcript        != null && { transcript:        data.transcript }),
       ...(data.recordingUrl      != null && { recordingUrl:      data.recordingUrl }),
       ...(data.interviewAnswers  != null && { interviewAnswers:  data.interviewAnswers }),
+      ...(data.endedReason       != null && { endedReason:       data.endedReason }),
+      ...(nextCallAt !== undefined        && { nextCallAt }),
+      lastCallAt: now,
     },
     include: {
       posting_rel: true,
@@ -502,13 +523,24 @@ export async function updateCallResultById(id: string, data: any) {
   const existing = await prisma.candidate.findUnique({ where: { id } });
   if (!existing) throw new Error('NOT_FOUND');
 
+  const resolvedStatus = resolveCallStatus(data.status);
+  const now = new Date();
+  const nextCallAt = data.nextCallAt
+    ? new Date(data.nextCallAt)
+    : resolvedStatus === 'voicemail'
+      ? new Date(now.getTime() + 60 * 60 * 1000)
+      : undefined;
+
   const updated = await prisma.candidate.update({
     where: { id },
     data: {
-      ...(existing.status !== 'interview-booked' && { status: resolveCallStatus(data.status) }),
+      ...(existing.status !== 'interview-booked' && { status: resolvedStatus }),
       ...(data.transcript        != null && { transcript:        data.transcript }),
       ...(data.recordingUrl      != null && { recordingUrl:      data.recordingUrl }),
       ...(data.interviewAnswers  != null && { interviewAnswers:  data.interviewAnswers }),
+      ...(data.endedReason       != null && { endedReason:       data.endedReason }),
+      ...(nextCallAt !== undefined        && { nextCallAt }),
+      lastCallAt: now,
     },
     include: {
       posting_rel: true,
