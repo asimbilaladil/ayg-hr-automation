@@ -75,6 +75,7 @@ function flattenCandidate(candidate: any) {
     postingName: candidate.posting_rel?.name || null,
     location: candidate.location_rel?.name || null,
     locationAddress: candidate.location_rel?.address || null,
+    address: candidate.location_rel?.address || null,
     hiringManager: candidate.hiringManager_rel?.name || null,
     recruiter: candidate.recruiter_rel?.name || null,
     // Remove the nested objects
