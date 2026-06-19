@@ -6,6 +6,12 @@
       <p class="text-gray-500 text-sm mt-1">Here's what's happening with your recruitment pipeline.</p>
     </div>
 
+    <!-- Error banner -->
+    <div v-if="error" class="rounded-lg bg-red-50 border border-red-200 px-4 py-3 flex items-center justify-between">
+      <p class="text-sm text-red-700">Failed to load dashboard stats. Please try again.</p>
+      <button @click="$router.go(0)" class="text-sm font-medium text-red-700 hover:text-red-800 underline ml-4">Refresh</button>
+    </div>
+
     <!-- Stats cards -->
     <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
       <div v-for="stat in stats" :key="stat.label" class="card p-5">
@@ -150,14 +156,21 @@
 
 <script setup>
 import { ref, computed, onMounted, h } from 'vue'
-import { candidatesApi, appointmentsApi } from '@/api'
+import { candidatesApi, appointmentsApi, dashboardApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import StatusBadge from '@/components/shared/StatusBadge.vue'
 
 const auth = useAuthStore()
 const loading = ref(true)
-const candidates = ref([])
-const appointments = ref([])
+const error = ref(false)
+
+// Stats from the lightweight /api/dashboard/stats endpoint
+const statsData = ref({ totalCandidates: 0, pendingCandidates: 0, reviewedCandidates: 0, totalAppointments: 0, todayAppointments: 0, aiBreakdown: { hire: 0, maybe: 0, reject: 0 } })
+
+// Small lists for the "Recent" panels (paginated, not full data)
+const recentCandidates = ref([])
+const todayAppointments = ref([])
+const upcomingAppointments = ref([])
 
 const greeting = computed(() => {
   const h = new Date().getHours()
@@ -168,51 +181,11 @@ const greeting = computed(() => {
 
 const firstName = computed(() => auth.user?.name?.split(' ')[0] || 'there')
 
-// Summary stats
-const totalCandidates = computed(() => candidates.value.length)
-const pendingCandidates = computed(() => candidates.value.filter(c => c.status === 'pending').length)
-const reviewedCandidates = computed(() => candidates.value.filter(c => c.status === 'reviewed').length)
-const totalAppointments = computed(() => appointments.value.length)
-
-const todayAppointments = computed(() => {
-  const today = new Date().toDateString()
-  return [...appointments.value]
-    .filter(a => new Date(a.interviewDate).toDateString() === today)
-    .sort((a, b) => a.startTime.localeCompare(b.startTime))
-})
-
-const recentCandidates = computed(() =>
-  [...candidates.value]
-    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-    .slice(0, 6)
-)
-
-const upcomingAppointments = computed(() =>
-  [...appointments.value]
-    .filter(a => new Date(a.interviewDate) > new Date())
-    .sort((a, b) => new Date(a.interviewDate) - new Date(b.interviewDate))
-    .slice(0, 6)
-)
-
+const totalCandidates = computed(() => statsData.value.totalCandidates)
 const aiBreakdown = computed(() => [
-  {
-    label: 'Hire',
-    value: candidates.value.filter(c => c.aiRecommendation === 'HIRE').length,
-    color: 'text-green-600',
-    barColor: 'bg-green-500'
-  },
-  {
-    label: 'Maybe',
-    value: candidates.value.filter(c => c.aiRecommendation === 'MAYBE').length,
-    color: 'text-yellow-600',
-    barColor: 'bg-yellow-500'
-  },
-  {
-    label: 'Reject',
-    value: candidates.value.filter(c => c.aiRecommendation === 'REJECT').length,
-    color: 'text-red-600',
-    barColor: 'bg-red-500'
-  }
+  { label: 'Hire',   value: statsData.value.aiBreakdown.hire,   color: 'text-green-600',  barColor: 'bg-green-500' },
+  { label: 'Maybe',  value: statsData.value.aiBreakdown.maybe,  color: 'text-yellow-600', barColor: 'bg-yellow-500' },
+  { label: 'Reject', value: statsData.value.aiBreakdown.reject, color: 'text-red-600',    barColor: 'bg-red-500' },
 ])
 
 // Icon helpers using render functions
@@ -233,11 +206,11 @@ const TodayIcon = { render: () => h('svg', { fill: 'none', stroke: 'currentColor
 ]) }
 
 const stats = computed(() => [
-  { label: 'Total Candidates', value: totalCandidates.value, icon: PeopleIcon, iconBg: 'bg-blue-50', iconColor: 'text-blue-600', sub: 'All time' },
-  { label: 'Pending Review', value: pendingCandidates.value, icon: ClockIcon, iconBg: 'bg-yellow-50', iconColor: 'text-yellow-600', sub: 'Awaiting AI analysis' },
-  { label: 'Reviewed', value: reviewedCandidates.value, icon: CheckIcon, iconBg: 'bg-green-50', iconColor: 'text-green-600', sub: 'AI scored' },
-  { label: 'Total Appointments', value: totalAppointments.value, icon: CalIcon, iconBg: 'bg-brand-50', iconColor: 'text-brand-600', sub: 'Scheduled' },
-  { label: "Today's Interviews", value: todayAppointments.value.length, icon: TodayIcon, iconBg: 'bg-purple-50', iconColor: 'text-purple-600', sub: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) },
+  { label: 'Total Candidates', value: statsData.value.totalCandidates, icon: PeopleIcon, iconBg: 'bg-blue-50', iconColor: 'text-blue-600', sub: 'All time' },
+  { label: 'Pending Review', value: statsData.value.pendingCandidates, icon: ClockIcon, iconBg: 'bg-yellow-50', iconColor: 'text-yellow-600', sub: 'Awaiting AI analysis' },
+  { label: 'Reviewed', value: statsData.value.reviewedCandidates, icon: CheckIcon, iconBg: 'bg-green-50', iconColor: 'text-green-600', sub: 'AI scored' },
+  { label: 'Total Appointments', value: statsData.value.totalAppointments, icon: CalIcon, iconBg: 'bg-brand-50', iconColor: 'text-brand-600', sub: 'Scheduled' },
+  { label: "Today's Interviews", value: statsData.value.todayAppointments, icon: TodayIcon, iconBg: 'bg-purple-50', iconColor: 'text-purple-600', sub: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) },
 ])
 
 function formatDate(d) {
@@ -246,15 +219,31 @@ function formatDate(d) {
 }
 
 onMounted(async () => {
+  error.value = false
+  loading.value = true
   try {
-    const [cRes, aRes] = await Promise.all([
-      candidatesApi.list({ limit: 9999 }),
+    const [statsRes, candidatesRes, appointmentsRes] = await Promise.all([
+      dashboardApi.getStats(),
+      candidatesApi.list({ limit: 6, sortBy: 'createdAt', sortOrder: 'desc' }),
       appointmentsApi.list({ limit: 9999 }),
     ])
-    candidates.value = cRes.data?.data || cRes.data || []
-    appointments.value = aRes.data?.data || aRes.data || []
+    statsData.value = statsRes.data
+
+    recentCandidates.value = candidatesRes.data?.data || candidatesRes.data || []
+
+    const allAppointments = appointmentsRes.data?.data ?? appointmentsRes.data ?? []
+    const now = new Date()
+    const todayStr = now.toDateString()
+    todayAppointments.value = allAppointments
+      .filter(a => new Date(a.interviewDate).toDateString() === todayStr)
+      .sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''))
+    upcomingAppointments.value = allAppointments
+      .filter(a => new Date(a.interviewDate) > now)
+      .sort((a, b) => new Date(a.interviewDate) - new Date(b.interviewDate))
+      .slice(0, 6)
   } catch (err) {
     console.error('Dashboard load error:', err)
+    error.value = true
   } finally {
     loading.value = false
   }

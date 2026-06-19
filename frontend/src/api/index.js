@@ -96,6 +96,11 @@ export const locationsApi = {
   remove: (id) => api.delete(`/api/locations/${id}`),
 }
 
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+export const dashboardApi = {
+  getStats: () => api.get('/api/dashboard/stats'),
+}
+
 // ── Notifications ─────────────────────────────────────────────────────────────
 export const notificationsApi = {
   list: () => api.get('/api/notifications'),
