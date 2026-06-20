@@ -113,7 +113,7 @@
                 <span v-else class="text-xs text-gray-300">—</span>
               </td>
               <td class="px-4 py-3 text-gray-600">
-                <span v-if="emp.manager">{{ emp.manager.name }}</span>
+                <span v-if="emp.location?.manager">{{ emp.location.manager.name }}</span>
                 <span v-else class="text-xs text-gray-300">—</span>
               </td>
               <td class="px-4 py-3 text-gray-600">
@@ -180,7 +180,7 @@
               </div>
               <div>
                 <p class="text-xs text-gray-400 mb-0.5">Manager</p>
-                <p class="font-medium text-gray-800">{{ detail.manager?.name ?? '—' }}</p>
+                <p class="font-medium text-gray-800">{{ detail.location?.manager?.name ?? '—' }}</p>
               </div>
               <div>
                 <p class="text-xs text-gray-400 mb-0.5">Phone</p>

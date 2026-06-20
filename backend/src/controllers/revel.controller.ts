@@ -88,9 +88,13 @@ export async function listEmployees(req: Request, res: Response, next: NextFunct
         ...(isActive !== undefined ? { isActive: isActive === 'true' } : {}),
       },
       include: {
-        location: { select: { id: true, name: true, address: true } },
-        manager:  { select: { id: true, name: true, email: true } },
-        review:   true,
+        location: {
+          select: {
+            id: true, name: true, address: true,
+            manager: { select: { id: true, name: true, email: true } },
+          },
+        },
+        review: true,
       },
       orderBy: [{ establishmentId: 'asc' }, { lastName: 'asc' }],
     });
