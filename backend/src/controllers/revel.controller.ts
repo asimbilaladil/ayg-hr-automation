@@ -34,6 +34,35 @@ export async function markCalled(req: Request, res: Response, next: NextFunction
   }
 }
 
+export async function updateEmployee(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const { called, calledAt } = req.body as { called?: boolean; calledAt?: string };
+
+    const employee = await prisma.aygFoodsEmployee.update({
+      where: { id },
+      data: {
+        ...(called !== undefined && { called }),
+        ...(called === true  && { calledAt: calledAt ? new Date(calledAt) : new Date() }),
+        ...(called === false && { calledAt: null }),
+      },
+      include: {
+        location: {
+          select: {
+            id: true, name: true, address: true,
+            manager: { select: { id: true, name: true, email: true } },
+          },
+        },
+        review: true,
+      },
+    });
+
+    res.json(employee);
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function upsertReview(req: Request, res: Response, next: NextFunction) {
   try {
     const { id } = req.params;
@@ -80,12 +109,13 @@ export async function getReview(req: Request, res: Response, next: NextFunction)
 
 export async function listEmployees(req: Request, res: Response, next: NextFunction) {
   try {
-    const { establishmentId, isActive } = req.query;
+    const { establishmentId, isActive, phone } = req.query;
 
     const employees = await prisma.aygFoodsEmployee.findMany({
       where: {
         ...(establishmentId ? { establishmentId: Number(establishmentId) } : {}),
         ...(isActive !== undefined ? { isActive: isActive === 'true' } : {}),
+        ...(phone ? { phone: { contains: String(phone) } } : {}),
       },
       include: {
         location: {

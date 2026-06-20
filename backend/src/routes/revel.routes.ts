@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { auth } from '../middleware/auth';
 import { rbac } from '../middleware/rbac';
-import { triggerSync, listEmployees, markCalled, upsertReview, getReview } from '../controllers/revel.controller';
+import { triggerSync, listEmployees, markCalled, updateEmployee, upsertReview, getReview } from '../controllers/revel.controller';
 
 const router = Router();
 
@@ -12,6 +12,9 @@ router.get('/employees', listEmployees);
 
 // POST /api/revel/sync                — manually trigger a sync (admin only)
 router.post('/sync', rbac('ADMIN'), triggerSync);
+
+// PATCH /api/revel/employees/:id              — update employee (called, calledAt)
+router.patch('/employees/:id', updateEmployee);
 
 // PATCH /api/revel/employees/:id/called       — mark employee as called / not called
 router.patch('/employees/:id/called', markCalled);
