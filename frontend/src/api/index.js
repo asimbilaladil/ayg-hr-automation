@@ -100,6 +100,8 @@ export const locationsApi = {
 export const onboardingApi = {
   list: (params) => api.get('/api/revel/employees', { params }),
   markCalled: (id, called) => api.patch(`/api/revel/employees/${id}/called`, { called }),
+  getReview: (id) => api.get(`/api/revel/employees/${id}/review`),
+  upsertReview: (id, data) => api.post(`/api/revel/employees/${id}/review`, data),
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────

@@ -34,6 +34,50 @@ export async function markCalled(req: Request, res: Response, next: NextFunction
   }
 }
 
+export async function upsertReview(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const { q1Rating, q2Rating, q4Rating, q3Notes, q5Notes, q6Notes, q7Notes, overallNotes, reviewedAt } = req.body;
+
+    const review = await prisma.onboardingReview.upsert({
+      where: { employeeId: id },
+      create: {
+        employeeId: id,
+        q1Rating, q2Rating, q4Rating,
+        q3Notes, q5Notes, q6Notes, q7Notes,
+        overallNotes,
+        reviewedAt: reviewedAt ? new Date(reviewedAt) : new Date(),
+      },
+      update: {
+        q1Rating, q2Rating, q4Rating,
+        q3Notes, q5Notes, q6Notes, q7Notes,
+        overallNotes,
+        reviewedAt: reviewedAt ? new Date(reviewedAt) : new Date(),
+      },
+    });
+
+    // also mark employee as called
+    await prisma.aygFoodsEmployee.update({
+      where: { id },
+      data: { called: true, calledAt: review.reviewedAt },
+    });
+
+    res.json(review);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getReview(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const review = await prisma.onboardingReview.findUnique({ where: { employeeId: id } });
+    res.json(review ?? null);
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function listEmployees(req: Request, res: Response, next: NextFunction) {
   try {
     const { establishmentId, isActive } = req.query;
@@ -46,6 +90,7 @@ export async function listEmployees(req: Request, res: Response, next: NextFunct
       include: {
         location: { select: { id: true, name: true, address: true } },
         manager:  { select: { id: true, name: true, email: true } },
+        review:   true,
       },
       orderBy: [{ establishmentId: 'asc' }, { lastName: 'asc' }],
     });
