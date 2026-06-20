@@ -96,9 +96,14 @@ export async function listCandidates(
 
   const where: Record<string, any> = {};
 
-  // Manager-scoped: only show candidates assigned to this manager
+  // Manager-scoped: only show candidates at this manager's location(s)
   if (scopedManagerId) {
-    where.hiringManagerId = scopedManagerId;
+    const managerLocations = await prisma.location.findMany({
+      where: { managerId: scopedManagerId },
+      select: { id: true },
+    });
+    const locationIds = managerLocations.map(l => l.id);
+    where.locationId = locationIds.length > 0 ? { in: locationIds } : undefined;
   }
 
   if (status) where.status = status;
