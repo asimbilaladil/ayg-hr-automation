@@ -7,10 +7,10 @@ const router = Router();
 
 router.use(auth);
 
-// GET  /api/revel/employees  — list all 30-day employees stored in DB
+// GET  /api/revel/employees  — list all synced 30-day employees
 router.get('/employees', listEmployees);
 
-// POST /api/revel/sync       — manually trigger a full sync from Revel (admin only)
+// POST /api/revel/sync       — manually trigger a sync (admin only)
 router.post('/sync', rbac('ADMIN'), triggerSync);
 
 export default router;
