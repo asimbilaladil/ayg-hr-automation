@@ -177,6 +177,9 @@ model AygFoodsEmployee {
   managerId         String?
   manager           User?     @relation("ManagerAygFoodsEmployees", fields: [managerId], references: [id])
 
+  called            Boolean   @default(false)
+  calledAt          DateTime?
+
   syncedAt          DateTime  @default(now())
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt

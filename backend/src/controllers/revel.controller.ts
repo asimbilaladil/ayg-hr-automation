@@ -11,6 +11,29 @@ export async function triggerSync(req: Request, res: Response, next: NextFunctio
   }
 }
 
+export async function markCalled(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const { called } = req.body as { called: boolean };
+
+    const employee = await prisma.aygFoodsEmployee.update({
+      where: { id },
+      data: {
+        called,
+        calledAt: called ? new Date() : null,
+      },
+      include: {
+        location: { select: { name: true } },
+        manager:  { select: { name: true } },
+      },
+    });
+
+    res.json(employee);
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function listEmployees(req: Request, res: Response, next: NextFunction) {
   try {
     const { establishmentId, isActive } = req.query;

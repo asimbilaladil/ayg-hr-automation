@@ -96,6 +96,12 @@ export const locationsApi = {
   remove: (id) => api.delete(`/api/locations/${id}`),
 }
 
+// ── Onboarding (30-day employees) ────────────────────────────────────────────
+export const onboardingApi = {
+  list: (params) => api.get('/api/revel/employees', { params }),
+  markCalled: (id, called) => api.patch(`/api/revel/employees/${id}/called`, { called }),
+}
+
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 export const dashboardApi = {
   getStats: () => api.get('/api/dashboard/stats'),

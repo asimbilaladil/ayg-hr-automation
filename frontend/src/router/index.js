@@ -9,6 +9,18 @@ const routes = [
     meta: { public: true }
   },
   {
+    path: '/privacy-policy',
+    name: 'PrivacyPolicy',
+    component: () => import('@/views/PrivacyPolicyView.vue'),
+    meta: { public: true }
+  },
+  {
+    path: '/terms',
+    name: 'Terms',
+    component: () => import('@/views/TermsView.vue'),
+    meta: { public: true }
+  },
+  {
     path: '/',
     component: () => import('@/components/layout/AppLayout.vue'),
     meta: { requiresAuth: true },
@@ -57,6 +69,12 @@ const routes = [
         path: 'locations',
         name: 'Locations',
         component: () => import('@/views/LocationsView.vue'),
+        meta: { requiresAuth: true }
+      },
+      {
+        path: 'onboarding',
+        name: 'Onboarding',
+        component: () => import('@/views/OnboardingView.vue'),
         meta: { requiresAuth: true }
       }
     ]
