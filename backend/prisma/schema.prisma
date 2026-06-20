@@ -30,6 +30,7 @@ model User {
   hiringCandidates    Candidate[] @relation("HiringManager")
   recruitedCandidates Candidate[] @relation("Recruiter")
   notifications       Notification[]
+  aygFoodsEmployees   AygFoodsEmployee[] @relation("ManagerAygFoodsEmployees")
 }
 
 model Notification {
@@ -58,6 +59,7 @@ model Location {
   appointments          Appointment[]
   managerAvailabilities ManagerAvailability[]
   candidates            Candidate[]
+  aygFoodsEmployees     AygFoodsEmployee[]
 }
 
 model Posting {
@@ -168,6 +170,13 @@ model AygFoodsEmployee {
   isActive          Boolean   @default(true)
   establishmentId   Int
   establishmentName String?
+
+  locationId        String?
+  location          Location? @relation(fields: [locationId], references: [id])
+
+  managerId         String?
+  manager           User?     @relation("ManagerAygFoodsEmployees", fields: [managerId], references: [id])
+
   syncedAt          DateTime  @default(now())
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt

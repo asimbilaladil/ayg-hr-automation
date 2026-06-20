@@ -1,5 +1,5 @@
 import { prisma } from '../lib/prisma';
-import { ESTABLISHMENTS } from './revel.constants';
+import { ESTABLISHMENTS, ESTABLISHMENT_DB_LOCATION_NAME } from './revel.constants';
 import { createRevelSession } from './revel.session';
 import { fetchAllEmployees, RevelEmployee } from './revel.employees';
 
@@ -34,8 +34,32 @@ export interface SyncResult {
   errors:   number;
 }
 
+// Builds a lookup map: establishmentId → { locationId, managerId }
+async function buildEstablishmentLocationMap(): Promise<Map<number, { locationId: string; managerId: string | null }>> {
+  const locations = await prisma.location.findMany({
+    select: { id: true, name: true, managerId: true },
+  });
+
+  const nameToLocation = new Map(locations.map((l) => [l.name, l]));
+  const map = new Map<number, { locationId: string; managerId: string | null }>();
+
+  for (const est of ESTABLISHMENTS) {
+    const loc = nameToLocation.get(ESTABLISHMENT_DB_LOCATION_NAME[est.id]);
+    if (loc) {
+      map.set(est.id, { locationId: loc.id, managerId: loc.managerId });
+    } else {
+      console.warn(`[Revel Sync] No DB location found for establishment ${est.id} (${est.dbLocationName})`);
+    }
+  }
+
+  return map;
+}
+
 export async function syncAygFoodsEmployees(): Promise<SyncResult> {
   console.log('[Revel Sync] Starting employee sync...');
+
+  // Load location→manager mapping before hitting Revel
+  const estLocationMap = await buildEstablishmentLocationMap();
 
   const { browser, context } = await createRevelSession();
   let allEmployees: RevelEmployee[] = [];
@@ -57,6 +81,8 @@ export async function syncAygFoodsEmployees(): Promise<SyncResult> {
   let errors = 0;
 
   for (const emp of eligible) {
+    const locationInfo = estLocationMap.get(emp.establishment_id);
+
     try {
       await prisma.aygFoodsEmployee.upsert({
         where: { revelId: emp.id },
@@ -69,6 +95,8 @@ export async function syncAygFoodsEmployees(): Promise<SyncResult> {
           isActive:          emp.is_active,
           establishmentId:   emp.establishment_id,
           establishmentName: emp.establishment_name,
+          locationId:        locationInfo?.locationId ?? null,
+          managerId:         locationInfo?.managerId ?? null,
           syncedAt:          new Date(),
         },
         create: {
@@ -81,6 +109,8 @@ export async function syncAygFoodsEmployees(): Promise<SyncResult> {
           isActive:          emp.is_active,
           establishmentId:   emp.establishment_id,
           establishmentName: emp.establishment_name,
+          locationId:        locationInfo?.locationId ?? null,
+          managerId:         locationInfo?.managerId ?? null,
           syncedAt:          new Date(),
         },
       });
