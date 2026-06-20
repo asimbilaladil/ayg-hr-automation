@@ -31,6 +31,8 @@ export const UpdateCallResultSchema = z.object({
   called:           z.string().optional(),
   status:           z.string().optional(),
   interviewAnswers: z.string().optional(),  // JSON string: [{question, category, answer}]
+  nextCallAt:       z.string().datetime().optional(),  // ISO — when cooldown expires; auto-set on voicemail
+  endedReason:      z.string().optional(),             // VAPI ended-reason: voicemail, hangup, etc.
 });
 
 export const UpdateCandidateSchema = z.object({
@@ -62,6 +64,8 @@ export const CandidateQuerySchema = z.object({
   limit: z.coerce.number().min(1).max(9999).default(20),
   sortBy: z.enum(['createdAt', 'aiScore', 'candidateName']).default('createdAt'),
   sortOrder: z.enum(['asc', 'desc']).default('desc'),
+  // Return only candidates where nextCallAt IS NULL or nextCallAt <= value
+  nextCallAtBefore: z.string().datetime().optional(),
 });
 
 export type CreateCandidateInput = z.infer<typeof CreateCandidateSchema>;
