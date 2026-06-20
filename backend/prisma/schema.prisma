@@ -91,6 +91,11 @@ model Candidate {
   // Interview answers as JSON array [{question, category, answer}]
   interviewAnswers  String?
 
+  // Outbound call metadata (set by n8n / Vapi)
+  endedReason       String?    // VAPI ended-reason: voicemail, hangup, silence-timed-out, etc.
+  nextCallAt        DateTime?  // Cooldown expiry — null means call anytime; set to now+1h on voicemail
+  lastCallAt        DateTime?  // Timestamp of the most recent call attempt
+
   // Appointment cancellation
   cancelReason      String?
   cancelledAt       DateTime?
@@ -150,4 +155,20 @@ model ManagerAvailability {
 
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+}
+
+model AygFoodsEmployee {
+  id                String    @id @default(cuid())
+  revelId           Int       @unique
+  firstName         String
+  lastName          String
+  email             String?
+  phone             String?
+  employeeStart     DateTime?
+  isActive          Boolean   @default(true)
+  establishmentId   Int
+  establishmentName String?
+  syncedAt          DateTime  @default(now())
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 }

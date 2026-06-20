@@ -17,6 +17,7 @@ import locationRoutes from './routes/locations.routes';
 import postingsRoutes from './routes/postings.routes';
 import notificationRoutes from './routes/notifications';
 import dashboardRoutes from './routes/dashboard.routes';
+import revelRoutes from './routes/revel.routes';
 
 const app = express();
 
@@ -48,6 +49,7 @@ app.use('/api/locations', locationRoutes);
 app.use('/api/postings', postingsRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/revel', revelRoutes);
 
 // ── 404 handler ──────────────────────────────────────────────────────────────
 app.use((_req, res) => res.status(404).json({ error: 'Route not found' }));
@@ -56,9 +58,12 @@ app.use((_req, res) => res.status(404).json({ error: 'Route not found' }));
 app.use(errorHandler);
 
 // ── Start ─────────────────────────────────────────────────────────────────────
+import { startRevelSyncCron } from './revel/revel.cron';
+
 const server = app.listen(env.PORT, () => {
   console.log(`✅ HR Backend running on port ${env.PORT} [${env.NODE_ENV}]`);
   console.log(`📚 Swagger docs: http://localhost:${env.PORT}/api/docs`);
+  startRevelSyncCron();
 });
 
 // Graceful shutdown

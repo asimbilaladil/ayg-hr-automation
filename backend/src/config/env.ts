@@ -8,6 +8,8 @@ const envSchema = z.object({
   PORT: z.coerce.number().default(3001),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   FRONTEND_URL: z.string().url().default('http://localhost:3000'),
+  REVEL_USER: z.string().optional(),
+  REVEL_PASS: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
