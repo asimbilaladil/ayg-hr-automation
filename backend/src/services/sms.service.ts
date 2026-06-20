@@ -25,7 +25,8 @@ export async function sendAppointmentSms(params: {
   const body =
     `Hello ${firstName}! Your interview for ${jobRole} has been scheduled.\n` +
     `Date: ${date}\nTime: ${time}\nLocation: ${locationName}${addressLine}\n` +
-    `Please arrive 10 minutes early. Good luck!`;
+    `Please arrive 10 minutes early. Good luck!\n` +
+    `Reply STOP to opt out.`;
 
   const client = twilio(accountSid, authToken);
 
@@ -48,7 +49,8 @@ export async function sendCancellationSms(params: {
   const body =
     `Hello ${firstName}, your interview appointment has been cancelled.\n` +
     `Reason: ${reason}\n` +
-    `To reschedule, please call us at ${fromNumber} and we will arrange a new time for you.`;
+    `To reschedule, please call us at ${fromNumber} and we will arrange a new time for you.\n` +
+    `Reply STOP to opt out.`;
 
   const client = twilio(accountSid, authToken);
 
