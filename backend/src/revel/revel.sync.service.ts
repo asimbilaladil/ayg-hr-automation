@@ -3,13 +3,28 @@ import { ESTABLISHMENTS } from './revel.constants';
 import { createRevelSession } from './revel.session';
 import { fetchAllEmployees, RevelEmployee } from './revel.employees';
 
-const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
-
-function hasCompletedThirtyDays(employeeStart: string | null): boolean {
+// Returns true if employee_start falls on exactly today - 30 days (same calendar date).
+// A 1-day trailing buffer is included so a missed cron run doesn't lose employees
+// whose anniversary was yesterday.
+function justCompletedThirtyDays(employeeStart: string | null): boolean {
   if (!employeeStart) return false;
   const startDate = new Date(employeeStart);
   if (isNaN(startDate.getTime())) return false;
-  return Date.now() - startDate.getTime() >= THIRTY_DAYS_MS;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const thirtyDaysAgo = new Date(today);
+  thirtyDaysAgo.setDate(today.getDate() - 30);
+
+  const thirtyOneDaysAgo = new Date(today);
+  thirtyOneDaysAgo.setDate(today.getDate() - 31);
+
+  const start = new Date(startDate);
+  start.setHours(0, 0, 0, 0);
+
+  // Window: [today - 31 days, today - 30 days] — catches today's batch + yesterday's if cron missed
+  return start >= thirtyOneDaysAgo && start <= thirtyDaysAgo;
 }
 
 export interface SyncResult {
@@ -32,10 +47,10 @@ export async function syncAygFoodsEmployees(): Promise<SyncResult> {
     await browser.close();
   }
 
-  const eligible = allEmployees.filter((e) => hasCompletedThirtyDays(e.employee_start));
+  const eligible = allEmployees.filter((e) => justCompletedThirtyDays(e.employee_start));
 
   console.log(
-    `[Revel Sync] Fetched ${allEmployees.length} total, ${eligible.length} completed 30 days`,
+    `[Revel Sync] Fetched ${allEmployees.length} total, ${eligible.length} just hit 30-day mark`,
   );
 
   let upserted = 0;
