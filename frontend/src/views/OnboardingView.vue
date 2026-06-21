@@ -214,58 +214,10 @@
 
             <!-- Review -->
             <template v-else-if="review">
+              <!-- Header row -->
               <div class="flex items-center justify-between">
                 <h4 class="text-sm font-semibold text-gray-700">Check-in Results</h4>
                 <span class="text-xs text-gray-400">{{ formatDate(review.reviewedAt) }}</span>
-              </div>
-
-              <!-- Rated questions -->
-              <div class="space-y-3">
-                <ReviewRating
-                  v-if="review.q1Rating"
-                  label="How are you finding your role so far?"
-                  :rating="review.q1Rating"
-                />
-                <ReviewRating
-                  v-if="review.q2Rating"
-                  label="Received adequate training and support?"
-                  :rating="review.q2Rating"
-                />
-                <ReviewRating
-                  v-if="review.q4Rating"
-                  label="Team dynamics and company culture?"
-                  :rating="review.q4Rating"
-                />
-              </div>
-
-              <!-- Text questions -->
-              <div class="space-y-3">
-                <ReviewText
-                  v-if="review.q3Notes"
-                  label="Any aspects of the job that surprised you?"
-                  :text="review.q3Notes"
-                />
-                <ReviewText
-                  v-if="review.q5Notes"
-                  label="What have you accomplished so far?"
-                  :text="review.q5Notes"
-                />
-                <ReviewText
-                  v-if="review.q6Notes"
-                  label="Needs more clarity on?"
-                  :text="review.q6Notes"
-                />
-                <ReviewText
-                  v-if="review.q7Notes"
-                  label="How can we support you better?"
-                  :text="review.q7Notes"
-                />
-                <ReviewText
-                  v-if="review.overallNotes"
-                  label="Overall call notes"
-                  :text="review.overallNotes"
-                  highlight
-                />
               </div>
 
               <!-- Average score -->
@@ -274,13 +226,96 @@
                   <p class="text-xs text-gray-500 mb-0.5">Overall Score</p>
                   <p class="text-2xl font-bold text-brand-700">{{ averageScore }}<span class="text-sm font-normal text-gray-400"> / 5</span></p>
                 </div>
-                <div class="flex gap-0.5">
+                <div class="flex gap-1">
                   <span
                     v-for="i in 5" :key="i"
-                    class="w-6 h-6 rounded-full flex items-center justify-center text-xs"
+                    class="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-semibold"
                     :class="i <= Math.round(averageScore) ? 'bg-brand-500 text-white' : 'bg-gray-200 text-gray-400'"
                   >{{ i }}</span>
                 </div>
+              </div>
+
+              <!-- Answer cards from VAPI answers array -->
+              <div v-if="parsedAnswers.length" class="space-y-3">
+                <div
+                  v-for="(a, idx) in parsedAnswers"
+                  :key="idx"
+                  class="rounded-xl border border-gray-200 bg-white overflow-hidden"
+                >
+                  <!-- Card header -->
+                  <div class="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100">
+                    <span class="text-xs font-semibold text-brand-700 uppercase tracking-wide">{{ a.category }}</span>
+                    <!-- Rating badge if present -->
+                    <span
+                      v-if="a.rating"
+                      class="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full"
+                      :class="ratingColor(a.rating)"
+                    >
+                      <span class="flex gap-0.5">
+                        <span
+                          v-for="i in 5" :key="i"
+                          class="w-2 h-2 rounded-full"
+                          :class="i <= a.rating ? 'bg-current' : 'bg-gray-300 opacity-40'"
+                        />
+                      </span>
+                      {{ ratingLabel(a.rating) }}
+                    </span>
+                    <span v-else class="text-xs text-gray-400 italic">No rating</span>
+                  </div>
+                  <!-- Question -->
+                  <div class="px-4 pt-3 pb-1">
+                    <p class="text-xs text-gray-500 leading-snug">{{ a.question }}</p>
+                  </div>
+                  <!-- Answer -->
+                  <div class="px-4 pb-4 pt-1">
+                    <p class="text-sm text-gray-800 leading-relaxed">{{ a.answer }}</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Fallback: structured q* fields (if no answers array) -->
+              <div v-else class="space-y-3">
+                <template v-for="q in structuredQuestions" :key="q.label">
+                  <div v-if="q.notes || q.rating" class="rounded-xl border border-gray-200 bg-white overflow-hidden">
+                    <div class="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100">
+                      <span class="text-xs font-semibold text-brand-700 uppercase tracking-wide">{{ q.category }}</span>
+                      <span v-if="q.rating" class="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full" :class="ratingColor(q.rating)">
+                        {{ ratingLabel(q.rating) }}
+                      </span>
+                    </div>
+                    <div class="px-4 pt-3 pb-1">
+                      <p class="text-xs text-gray-500">{{ q.label }}</p>
+                    </div>
+                    <div v-if="q.notes" class="px-4 pb-4 pt-1">
+                      <p class="text-sm text-gray-800 leading-relaxed">{{ q.notes }}</p>
+                    </div>
+                  </div>
+                </template>
+              </div>
+
+              <!-- Overall notes -->
+              <div v-if="review.overallNotes" class="rounded-xl border border-brand-200 bg-brand-50 p-4">
+                <p class="text-xs font-semibold text-brand-700 uppercase tracking-wide mb-1.5">Overall Notes</p>
+                <p class="text-sm text-gray-800 leading-relaxed">{{ review.overallNotes }}</p>
+              </div>
+
+              <!-- Call status & recording -->
+              <div v-if="review.callStatus || review.recordingUrl" class="rounded-xl border border-gray-200 bg-white p-4 space-y-2">
+                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Call Info</p>
+                <div v-if="review.callStatus" class="flex items-center gap-2">
+                  <span class="text-xs text-gray-500">Status:</span>
+                  <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">{{ review.callStatus }}</span>
+                </div>
+                <div v-if="review.recordingUrl">
+                  <p class="text-xs text-gray-500 mb-1">Recording</p>
+                  <audio controls class="w-full h-8" :src="review.recordingUrl" />
+                </div>
+              </div>
+
+              <!-- Transcript -->
+              <div v-if="review.transcript" class="rounded-xl border border-gray-200 bg-white p-4">
+                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Call Transcript</p>
+                <p class="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap max-h-64 overflow-y-auto">{{ review.transcript }}</p>
               </div>
             </template>
           </div>
@@ -291,10 +326,10 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, h, defineComponent } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { onboardingApi } from '@/api'
 
-// ── Inline sub-components ─────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 const RATING_LABELS = { 1: 'Very Poor', 2: 'Poor', 3: 'Fair', 4: 'Good', 5: 'Excellent' }
 const RATING_COLORS = {
@@ -305,38 +340,8 @@ const RATING_COLORS = {
   5: 'bg-green-100 text-green-700',
 }
 
-const ReviewRating = defineComponent({
-  props: { label: String, rating: Number },
-  setup(props) {
-    return () => h('div', { class: 'rounded-xl border border-gray-200 p-4 bg-white' }, [
-      h('p', { class: 'text-xs text-gray-500 mb-2' }, props.label),
-      h('div', { class: 'flex items-center gap-3' }, [
-        h('div', { class: 'flex gap-1' },
-          Array.from({ length: 5 }, (_, i) =>
-            h('div', {
-              class: `w-7 h-7 rounded-lg flex items-center justify-center text-xs font-semibold transition-colors ${i < props.rating ? 'bg-brand-500 text-white' : 'bg-gray-100 text-gray-400'}`
-            }, i + 1)
-          )
-        ),
-        h('span', {
-          class: `text-xs font-semibold px-2 py-0.5 rounded-full ${RATING_COLORS[props.rating]}`
-        }, RATING_LABELS[props.rating]),
-      ])
-    ])
-  }
-})
-
-const ReviewText = defineComponent({
-  props: { label: String, text: String, highlight: Boolean },
-  setup(props) {
-    return () => h('div', {
-      class: `rounded-xl border p-4 ${props.highlight ? 'border-brand-200 bg-brand-50' : 'border-gray-200 bg-white'}`
-    }, [
-      h('p', { class: 'text-xs text-gray-500 mb-1.5' }, props.label),
-      h('p', { class: 'text-sm text-gray-800 leading-relaxed' }, props.text),
-    ])
-  }
-})
+function ratingLabel(r) { return RATING_LABELS[r] ?? '' }
+function ratingColor(r) { return RATING_COLORS[r] ?? 'bg-gray-100 text-gray-600' }
 
 // ── Main component ────────────────────────────────────────────────────────────
 
@@ -363,9 +368,46 @@ const filtered     = computed(() => {
 const calledCount  = computed(() => employees.value.filter(e => e.called).length)
 const pendingCount = computed(() => employees.value.filter(e => !e.called).length)
 
+// Parse stored answers JSON string into array, merging structured q*Rating fields by category
+const CATEGORY_RATING_MAP = {
+  'Role Experience':    'q1Rating',
+  'Training & Support': 'q2Rating',
+  'Culture Fit':        'q4Rating',
+}
+const parsedAnswers = computed(() => {
+  if (!review.value?.answers) return []
+  try {
+    const arr = typeof review.value.answers === 'string'
+      ? JSON.parse(review.value.answers)
+      : review.value.answers
+    if (!Array.isArray(arr)) return []
+    return arr.map(a => ({
+      ...a,
+      rating: a.rating ?? review.value[CATEGORY_RATING_MAP[a.category]] ?? null,
+    }))
+  } catch { return [] }
+})
+
+// Fallback structured questions for when no answers array is present
+const structuredQuestions = computed(() => {
+  if (!review.value) return []
+  return [
+    { category: 'Role Experience',    label: 'How are you finding your role so far?',                   rating: review.value.q1Rating, notes: review.value.q1Notes },
+    { category: 'Training & Support', label: 'Received adequate training and support?',                 rating: review.value.q2Rating, notes: review.value.q2Notes },
+    { category: 'Surprises',          label: 'Any aspects of the job that surprised you?',              rating: null,                  notes: review.value.q3Notes },
+    { category: 'Culture Fit',        label: 'How do you feel about team dynamics and company culture?', rating: review.value.q4Rating, notes: review.value.q4Notes },
+    { category: 'Accomplishments',    label: 'What have you accomplished so far?',                      rating: null,                  notes: review.value.q5Notes },
+    { category: 'Clarity',            label: 'Is there anything you need more clarity on?',             rating: null,                  notes: review.value.q6Notes },
+    { category: 'Support Needed',     label: 'How can we support you better?',                          rating: null,                  notes: review.value.q7Notes },
+  ].filter(q => q.notes || q.rating)
+})
+
 const averageScore = computed(() => {
   if (!review.value) return null
-  const scores = [review.value.q1Rating, review.value.q2Rating, review.value.q4Rating].filter(Boolean)
+  // prefer ratings from parsed answers array
+  const fromAnswers = parsedAnswers.value.map(a => a.rating).filter(Boolean)
+  const fromFields  = [review.value.q1Rating, review.value.q2Rating, review.value.q4Rating].filter(Boolean)
+  const scores = fromAnswers.length ? fromAnswers : fromFields
   if (!scores.length) return null
   return (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1)
 })

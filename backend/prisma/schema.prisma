@@ -193,18 +193,40 @@ model OnboardingReview {
   employeeId  String   @unique
   employee    AygFoodsEmployee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
-  // Rated 1–5
-  q1Rating    Int?   // How are you finding your role so far?
-  q2Rating    Int?   // Do you feel you have received adequate training and support?
-  q4Rating    Int?   // How do you feel about the team dynamics and company culture?
+  reviewType  String?  // e.g. "30_day"
 
-  // Open-ended text answers
-  q3Notes     String?  // Are there any aspects of the job that have surprised you?
-  q5Notes     String?  // What have you accomplished so far?
-  q6Notes     String?  // Is there anything you feel you need more clarity on?
-  q7Notes     String?  // How can we support you better?
+  // Q1 — How are you finding your role so far?
+  q1Rating    Int?
+  q1Notes     String?
+
+  // Q2 — Do you feel you have received adequate training and support?
+  q2Rating    Int?
+  q2Notes     String?
+
+  // Q3 — Are there any aspects of the job that have surprised you?
+  q3Notes     String?
+
+  // Q4 — How do you feel about the team dynamics and company culture?
+  q4Rating    Int?
+  q4Notes     String?
+
+  // Q5 — What have you accomplished so far?
+  q5Notes     String?
+
+  // Q6 — Is there anything you feel you need more clarity on?
+  q6Notes     String?
+
+  // Q7 — How can we support you better?
+  q7Notes     String?
 
   overallNotes  String?
+
+  // VAPI / n8n call data
+  transcript    String?
+  recordingUrl  String?
+  callStatus    String?
+  answers       String?  // raw JSON array from VAPI
+
   reviewedAt    DateTime @default(now())
 
   createdAt   DateTime @default(now())

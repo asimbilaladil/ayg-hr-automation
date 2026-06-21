@@ -63,26 +63,135 @@ export async function updateEmployee(req: Request, res: Response, next: NextFunc
   }
 }
 
+// Maps VAPI answer category → DB fields
+const CATEGORY_MAP: Record<string, { notes: string; rating?: string }> = {
+  'Role Experience':    { notes: 'q1Notes', rating: 'q1Rating' },
+  'Training & Support': { notes: 'q2Notes', rating: 'q2Rating' },
+  'Surprises':          { notes: 'q3Notes' },
+  'Culture Fit':        { notes: 'q4Notes', rating: 'q4Rating' },
+  'Accomplishments':    { notes: 'q5Notes' },
+  'Clarity':            { notes: 'q6Notes' },
+  'Clarity Needed':     { notes: 'q6Notes' },
+  'Support Needed':     { notes: 'q7Notes' },
+};
+
+// Extract the last single-digit 1-5 rating mentioned in answer text
+function extractRatingFromText(text: string): number | undefined {
+  const matches = [...text.matchAll(/\b([1-5])\b/g)];
+  if (!matches.length) return undefined;
+  return Number(matches[matches.length - 1][1]);
+}
+
+type Turn = { role: 'AI' | 'User'; text: string };
+
+function parseTranscriptTurns(transcript: string): Turn[] {
+  return transcript.split('\n')
+    .map(l => l.trim())
+    .filter(l => l.startsWith('AI:') || l.startsWith('User:'))
+    .map(l => l.startsWith('AI:')
+      ? { role: 'AI' as const, text: l.slice(3).trim() }
+      : { role: 'User' as const, text: l.slice(5).trim() });
+}
+
+// Given the transcript turns and a question string, extract only the user
+// utterances that directly follow the AI turn asking that question.
+function extractAnswerFromTranscript(turns: Turn[], question: string): string | null {
+  const keywords = question.toLowerCase().split(/\s+/).filter(w => w.length > 4).slice(0, 6);
+  const threshold = Math.min(3, Math.ceil(keywords.length * 0.5));
+
+  let bestIdx = -1;
+  for (let i = 0; i < turns.length; i++) {
+    if (turns[i].role !== 'AI') continue;
+    const hit = keywords.filter(kw => turns[i].text.toLowerCase().includes(kw)).length;
+    if (hit >= threshold) bestIdx = i; // keep last match (handles rephrased questions)
+  }
+  if (bestIdx === -1) return null;
+
+  const userTexts: string[] = [];
+  for (let i = bestIdx + 1; i < turns.length; i++) {
+    if (turns[i].role === 'User') {
+      userTexts.push(turns[i].text);
+    } else if (userTexts.length > 0) {
+      break; // stop at next AI turn once we have user speech
+    }
+    // if no user speech yet and we hit another AI turn, keep scanning
+  }
+  return userTexts.length ? userTexts.join(' ') : null;
+}
+
+function mapAnswers(answers: Array<{ category: string; question?: string; answer: string; rating?: number }>) {
+  const mapped: Record<string, any> = {};
+  for (const a of answers) {
+    const mapping = CATEGORY_MAP[a.category];
+    if (!mapping) continue;
+    if (a.answer) mapped[mapping.notes] = a.answer;
+    if (mapping.rating) {
+      const rating = a.rating != null ? Number(a.rating) : extractRatingFromText(a.answer);
+      if (rating) mapped[mapping.rating] = rating;
+    }
+  }
+  return mapped;
+}
+
 export async function upsertReview(req: Request, res: Response, next: NextFunction) {
   try {
-    const { id } = req.params;
-    const { q1Rating, q2Rating, q4Rating, q3Notes, q5Notes, q6Notes, q7Notes, overallNotes, reviewedAt } = req.body;
+    const id = req.params.id.replace(/^=+/, '');
+    const {
+      reviewType,
+      q1Rating, q1Notes,
+      q2Rating, q2Notes,
+      q3Notes,
+      q4Rating, q4Notes,
+      q5Notes, q6Notes, q7Notes,
+      overallNotes, reviewedAt,
+      transcript, recordingUrl, callStatus, answers,
+    } = req.body;
+
+    const answersStr = answers !== undefined
+      ? (typeof answers === 'string' ? answers : JSON.stringify(answers))
+      : undefined;
+
+    // Parse answers if it arrived as a JSON string
+    const rawAnswersArr: Array<{ category: string; question?: string; answer: string; rating?: number }> =
+      Array.isArray(answers)
+        ? answers
+        : (typeof answers === 'string' ? (() => { try { return JSON.parse(answers); } catch { return []; } })() : []);
+
+    // Clean each answer using the transcript so only the relevant user utterances
+    // are stored (VAPI tends to bundle all prior speech into each answer).
+    const turns = transcript ? parseTranscriptTurns(transcript) : [];
+    const answersArr = rawAnswersArr.map(a => {
+      if (!turns.length || !a.question) return a;
+      const clean = extractAnswerFromTranscript(turns, a.question);
+      return clean ? { ...a, answer: clean } : a;
+    });
+
+    const cleanedAnswersStr = answersArr.length ? JSON.stringify(answersArr) : answersStr;
+    const fromAnswers = answersArr.length ? mapAnswers(answersArr) : {};
+
+    const data = {
+      reviewType,
+      // explicit fields take precedence; fallback to auto-mapped
+      q1Rating: q1Rating ?? fromAnswers.q1Rating,
+      q1Notes:  q1Notes  ?? fromAnswers.q1Notes,
+      q2Rating: q2Rating ?? fromAnswers.q2Rating,
+      q2Notes:  q2Notes  ?? fromAnswers.q2Notes,
+      q3Notes:  q3Notes  ?? fromAnswers.q3Notes,
+      q4Rating: q4Rating ?? fromAnswers.q4Rating,
+      q4Notes:  q4Notes  ?? fromAnswers.q4Notes,
+      q5Notes:  q5Notes  ?? fromAnswers.q5Notes,
+      q6Notes:  q6Notes  ?? fromAnswers.q6Notes,
+      q7Notes:  q7Notes  ?? fromAnswers.q7Notes,
+      overallNotes,
+      transcript, recordingUrl, callStatus,
+      answers: cleanedAnswersStr,
+      reviewedAt: reviewedAt ? new Date(reviewedAt) : new Date(),
+    };
 
     const review = await prisma.onboardingReview.upsert({
       where: { employeeId: id },
-      create: {
-        employeeId: id,
-        q1Rating, q2Rating, q4Rating,
-        q3Notes, q5Notes, q6Notes, q7Notes,
-        overallNotes,
-        reviewedAt: reviewedAt ? new Date(reviewedAt) : new Date(),
-      },
-      update: {
-        q1Rating, q2Rating, q4Rating,
-        q3Notes, q5Notes, q6Notes, q7Notes,
-        overallNotes,
-        reviewedAt: reviewedAt ? new Date(reviewedAt) : new Date(),
-      },
+      create: { employeeId: id, ...data },
+      update: data,
     });
 
     // also mark employee as called
