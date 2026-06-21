@@ -243,3 +243,45 @@ export async function listEmployees(req: Request, res: Response, next: NextFunct
     next(err);
   }
 }
+
+export async function getCandidateByPhone(req: Request, res: Response, next: NextFunction) {
+  try {
+    const raw = req.params.phone.replace(/^=+/, '');
+    const normalize = (p: string) => p.replace(/[\s\-().+]/g, '');
+    const digits = normalize(raw);
+
+    const all = await prisma.candidate.findMany({
+      where: { phone: { not: null } },
+      include: {
+        posting_rel:      { select: { id: true, name: true } },
+        location_rel:     { select: { id: true, name: true } },
+        hiringManager_rel:{ select: { id: true, name: true, email: true } },
+        appointment:      true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const matches = all.filter(c => {
+      if (!c.phone) return false;
+      const stored = normalize(c.phone);
+      return stored === digits || stored.endsWith(digits) || digits.endsWith(stored);
+    });
+
+    if (!matches.length) {
+      res.status(404).json({ found: false, candidates: [], message: 'No candidate found with this phone number' });
+      return;
+    }
+
+    // Smart priority: prefer candidates with an appointment, then active status, then most recent
+    const priority = (c: typeof matches[0]) => {
+      if (c.appointment) return 0;
+      if (c.status === 'active' || c.status === 'processed') return 1;
+      return 2;
+    };
+    matches.sort((a, b) => priority(a) - priority(b));
+
+    res.json({ found: true, total: matches.length, candidates: matches });
+  } catch (err) {
+    next(err);
+  }
+}

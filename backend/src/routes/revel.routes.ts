@@ -1,9 +1,12 @@
 import { Router } from 'express';
-import { auth } from '../middleware/auth';
+import { auth, apiKeyAuth } from '../middleware/auth';
 import { rbac } from '../middleware/rbac';
-import { triggerSync, listEmployees, markCalled, updateEmployee, upsertReview, getReview } from '../controllers/revel.controller';
+import { triggerSync, listEmployees, markCalled, updateEmployee, upsertReview, getReview, getCandidateByPhone } from '../controllers/revel.controller';
 
 const router = Router();
+
+// n8n endpoints (API key only — must be registered before router.use(auth))
+router.get('/candidates/by-phone/:phone', apiKeyAuth, getCandidateByPhone);
 
 router.use(auth);
 
