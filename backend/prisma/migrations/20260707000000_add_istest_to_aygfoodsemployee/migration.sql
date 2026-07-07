@@ -1,0 +1,1 @@
+ALTER TABLE "AygFoodsEmployee" ADD COLUMN "isTest" BOOLEAN NOT NULL DEFAULT false;

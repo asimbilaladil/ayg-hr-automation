@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../lib/prisma';
 import { syncAygFoodsEmployees } from '../revel/revel.sync.service';
+import { createNotification } from '../services/notifications.service';
 
 export async function triggerSync(req: Request, res: Response, next: NextFunction) {
   try {
@@ -195,10 +196,31 @@ export async function upsertReview(req: Request, res: Response, next: NextFuncti
     });
 
     // also mark employee as called
-    await prisma.aygFoodsEmployee.update({
+    const employee = await prisma.aygFoodsEmployee.update({
       where: { id },
       data: { called: true, calledAt: review.reviewedAt },
+      include: { manager: true },
     });
+
+    // notify the manager, all HR users, and all admins
+    const employeeName = `${employee.firstName} ${employee.lastName}`;
+    const notifTitle = 'Onboarding Review Recorded';
+    const notifBody  = `A review has been recorded for employee ${employeeName}${employee.establishmentName ? ` (${employee.establishmentName})` : ''}.`;
+    const metadata   = { employeeId: id, reviewType: review.reviewType };
+
+    const recipientIds = new Set<string>();
+
+    if (employee.managerId) recipientIds.add(employee.managerId);
+
+    const staffUsers = await prisma.user.findMany({
+      where: { role: { in: ['HR', 'ADMIN'] } },
+      select: { id: true },
+    });
+    staffUsers.forEach(u => recipientIds.add(u.id));
+
+    await Promise.all(
+      [...recipientIds].map(uid => createNotification(uid, notifTitle, notifBody, metadata)),
+    );
 
     res.json(review);
   } catch (err) {
@@ -211,6 +233,101 @@ export async function getReview(req: Request, res: Response, next: NextFunction)
     const { id } = req.params;
     const review = await prisma.onboardingReview.findUnique({ where: { employeeId: id } });
     res.json(review ?? null);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Default location/establishment new test records are created under —
+// matches the existing Ray Murray / Asim Bilal test records.
+const TEST_RECORD_DEFAULTS = {
+  locationId: 'cmo3k2a7h0010dnrle21s46wy',
+  managerId: 'cmo3k2a7m0011dnrl9tl7zfcp',
+  establishmentId: 32,
+  establishmentName: 'LCF Airtex',
+};
+
+export async function createTestRecord(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { firstName, lastName, phone } = req.body as { firstName?: string; lastName?: string; phone?: string };
+
+    if (!firstName?.trim() || !lastName?.trim() || !phone?.trim()) {
+      res.status(400).json({ error: 'firstName, lastName, and phone are required' });
+      return;
+    }
+
+    const employeeStart = new Date();
+    employeeStart.setDate(employeeStart.getDate() - 31);
+
+    let employee;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      try {
+        employee = await prisma.aygFoodsEmployee.create({
+          data: {
+            firstName: firstName.trim(),
+            lastName: lastName.trim(),
+            phone: phone.trim(),
+            revelId: -Math.floor(Math.random() * 1_000_000_000 + 1), // negative = never collides with real Revel IDs
+            employeeStart,
+            isActive: true,
+            isTest: true,
+            called: false,
+            ...TEST_RECORD_DEFAULTS,
+          },
+          include: {
+            location: {
+              select: {
+                id: true, name: true, address: true,
+                manager: { select: { id: true, name: true, email: true } },
+              },
+            },
+            review: true,
+          },
+        });
+        break;
+      } catch (err: any) {
+        if (err?.code === 'P2002' && attempt < 4) continue; // revelId collision, retry
+        throw err;
+      }
+    }
+
+    res.status(201).json(employee);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function resetTestRecord(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+
+    const existing = await prisma.aygFoodsEmployee.findUnique({ where: { id } });
+    if (!existing) {
+      res.status(404).json({ error: 'Employee not found' });
+      return;
+    }
+    if (!existing.isTest) {
+      res.status(403).json({ error: 'Only test records can be reset' });
+      return;
+    }
+
+    await prisma.onboardingReview.deleteMany({ where: { employeeId: id } });
+
+    const employee = await prisma.aygFoodsEmployee.update({
+      where: { id },
+      data: { called: false, calledAt: null },
+      include: {
+        location: {
+          select: {
+            id: true, name: true, address: true,
+            manager: { select: { id: true, name: true, email: true } },
+          },
+        },
+        review: true,
+      },
+    });
+
+    res.json(employee);
   } catch (err) {
     next(err);
   }
@@ -250,13 +367,12 @@ export async function getCandidateByPhone(req: Request, res: Response, next: Nex
     const normalize = (p: string) => p.replace(/[\s\-().+]/g, '');
     const digits = normalize(raw);
 
-    const all = await prisma.candidate.findMany({
+    const all = await prisma.aygFoodsEmployee.findMany({
       where: { phone: { not: null } },
       include: {
-        posting_rel:      { select: { id: true, name: true } },
-        location_rel:     { select: { id: true, name: true } },
-        hiringManager_rel:{ select: { id: true, name: true, email: true } },
-        appointment:      true,
+        location: { select: { id: true, name: true } },
+        manager:  { select: { id: true, name: true, email: true } },
+        review:   true,
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -268,19 +384,11 @@ export async function getCandidateByPhone(req: Request, res: Response, next: Nex
     });
 
     if (!matches.length) {
-      res.status(404).json({ found: false, candidates: [], message: 'No candidate found with this phone number' });
+      res.status(404).json({ found: false, employees: [], message: 'No employee found with this phone number' });
       return;
     }
 
-    // Smart priority: prefer candidates with an appointment, then active status, then most recent
-    const priority = (c: typeof matches[0]) => {
-      if (c.appointment) return 0;
-      if (c.status === 'active' || c.status === 'processed') return 1;
-      return 2;
-    };
-    matches.sort((a, b) => priority(a) - priority(b));
-
-    res.json({ found: true, total: matches.length, candidates: matches });
+    res.json({ found: true, total: matches.length, employees: matches });
   } catch (err) {
     next(err);
   }

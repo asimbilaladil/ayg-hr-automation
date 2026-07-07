@@ -8,16 +8,25 @@
           Employees who just completed their first 30 days — call each one to check in on their experience
         </p>
       </div>
-      <div class="flex bg-gray-100 rounded-lg p-1 text-xs font-medium gap-1">
+      <div class="flex items-center gap-3">
+        <div class="flex bg-gray-100 rounded-lg p-1 text-xs font-medium gap-1">
+          <button
+            v-for="f in filters"
+            :key="f.value"
+            class="px-3 py-1.5 rounded-md transition-colors"
+            :class="activeFilter === f.value
+              ? 'bg-white text-gray-900 shadow-sm'
+              : 'text-gray-500 hover:text-gray-700'"
+            @click="activeFilter = f.value"
+          >{{ f.label }}</button>
+        </div>
         <button
-          v-for="f in filters"
-          :key="f.value"
-          class="px-3 py-1.5 rounded-md transition-colors"
-          :class="activeFilter === f.value
-            ? 'bg-white text-gray-900 shadow-sm'
-            : 'text-gray-500 hover:text-gray-700'"
-          @click="activeFilter = f.value"
-        >{{ f.label }}</button>
+          v-if="auth.isAdmin"
+          class="text-xs px-3 py-2 rounded-lg font-medium bg-purple-50 text-purple-600 hover:bg-purple-100 transition-colors whitespace-nowrap"
+          @click="openCreateTestModal"
+        >
+          + Add Test Record
+        </button>
       </div>
     </div>
 
@@ -79,7 +88,10 @@
               @click="openDetail(emp)"
             >
               <td class="px-4 py-3">
-                <div class="font-medium text-gray-900">{{ emp.firstName }} {{ emp.lastName }}</div>
+                <div class="font-medium text-gray-900 flex items-center gap-1.5">
+                  {{ emp.firstName }} {{ emp.lastName }}
+                  <span v-if="emp.isTest" class="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-600 font-semibold uppercase tracking-wide">Test</span>
+                </div>
                 <div class="text-xs text-gray-400 mt-0.5 flex items-center gap-1.5">
                   <span>ID {{ emp.revelId }}</span>
                   <span v-if="emp.review" class="inline-flex items-center gap-0.5 text-purple-600">
@@ -133,16 +145,26 @@
                 </div>
               </td>
               <td class="px-4 py-3 text-center" @click.stop>
-                <button
-                  class="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors disabled:opacity-50"
-                  :class="emp.called
-                    ? 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    : 'bg-brand-600 text-white hover:bg-brand-700'"
-                  :disabled="toggling === emp.id"
-                  @click="toggleCalled(emp)"
-                >
-                  {{ toggling === emp.id ? '...' : emp.called ? 'Mark Pending' : 'Mark Called' }}
-                </button>
+                <div class="flex flex-col items-center gap-1.5">
+                  <button
+                    class="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors disabled:opacity-50 w-28"
+                    :class="emp.called
+                      ? 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      : 'bg-brand-600 text-white hover:bg-brand-700'"
+                    :disabled="toggling === emp.id"
+                    @click="toggleCalled(emp)"
+                  >
+                    {{ toggling === emp.id ? '...' : emp.called ? 'Mark Pending' : 'Mark Called' }}
+                  </button>
+                  <button
+                    v-if="auth.isAdmin && emp.isTest"
+                    class="text-xs px-3 py-1.5 rounded-lg font-medium bg-purple-50 text-purple-600 hover:bg-purple-100 transition-colors w-28"
+                    title="Reset this test record back to pending, no review"
+                    @click="confirmReset(emp)"
+                  >
+                    Reset
+                  </button>
+                </div>
               </td>
             </tr>
           </tbody>
@@ -322,12 +344,66 @@
         </div>
       </div>
     </Transition>
+
+    <!-- ── Add Test Record Modal ── -->
+    <div v-if="createTestModal" class="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6 space-y-4">
+        <h3 class="text-lg font-bold text-gray-900">Add Test Record</h3>
+        <p class="text-xs text-gray-500 -mt-2">
+          Creates a test employee at LCF Airtex (manager Emerson Medrano Rodriguez), already past 30 days, so it shows up ready to call.
+        </p>
+
+        <div class="space-y-3">
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">First Name <span class="text-red-500">*</span></label>
+            <input v-model="createTestForm.firstName" type="text" placeholder="Jane"
+              class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-brand-500 focus:border-brand-500 focus:outline-none" />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Last Name <span class="text-red-500">*</span></label>
+            <input v-model="createTestForm.lastName" type="text" placeholder="Doe"
+              class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-brand-500 focus:border-brand-500 focus:outline-none" />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Phone <span class="text-red-500">*</span></label>
+            <input v-model="createTestForm.phone" type="text" placeholder="+18325551234"
+              class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-brand-500 focus:border-brand-500 focus:outline-none" />
+          </div>
+        </div>
+
+        <p v-if="createTestError" class="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2 border border-red-200">{{ createTestError }}</p>
+
+        <div class="flex justify-end gap-3 pt-1">
+          <button class="text-sm text-gray-500 hover:text-gray-800 px-4 py-2 rounded-lg border border-gray-200 transition-colors"
+            @click="createTestModal = false">Cancel</button>
+          <button
+            class="text-sm bg-brand-600 text-white px-4 py-2 rounded-lg hover:bg-brand-700 transition-colors disabled:opacity-50"
+            :disabled="creatingTest || !createTestForm.firstName.trim() || !createTestForm.lastName.trim() || !createTestForm.phone.trim()"
+            @click="doCreateTest">
+            {{ creatingTest ? 'Creating…' : 'Create' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <ConfirmDialog
+      v-model="resetConfirmModal"
+      title="Reset test record?"
+      :message="`Clear the call/review status for ${resetTarget?.firstName} ${resetTarget?.lastName} so it looks pending again? This deletes the existing review.`"
+      confirm-text="Reset"
+      :loading="resetting"
+      @confirm="doReset"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { onboardingApi } from '@/api'
+import { useAuthStore } from '@/stores/auth'
+import ConfirmDialog from '@/components/shared/ConfirmDialog.vue'
+
+const auth = useAuthStore()
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -456,6 +532,61 @@ async function openDetail(emp) {
 function closeDetail() {
   detail.value = null
   review.value = null
+}
+
+const resetConfirmModal = ref(false)
+const resetTarget       = ref(null)
+const resetting         = ref(false)
+
+function confirmReset(emp) {
+  resetTarget.value = emp
+  resetConfirmModal.value = true
+}
+
+const createTestModal = ref(false)
+const createTestForm  = ref({ firstName: '', lastName: '', phone: '' })
+const createTestError = ref('')
+const creatingTest    = ref(false)
+
+function openCreateTestModal() {
+  createTestForm.value = { firstName: '', lastName: '', phone: '' }
+  createTestError.value = ''
+  createTestModal.value = true
+}
+
+async function doCreateTest() {
+  creatingTest.value = true
+  createTestError.value = ''
+  try {
+    const { data } = await onboardingApi.createTest({
+      firstName: createTestForm.value.firstName.trim(),
+      lastName: createTestForm.value.lastName.trim(),
+      phone: createTestForm.value.phone.trim(),
+    })
+    employees.value.unshift(data)
+    createTestModal.value = false
+  } catch (err) {
+    createTestError.value = err.response?.data?.error ?? 'Failed to create test record'
+  } finally {
+    creatingTest.value = false
+  }
+}
+
+async function doReset() {
+  if (!resetTarget.value) return
+  resetting.value = true
+  try {
+    const { data } = await onboardingApi.reset(resetTarget.value.id)
+    const idx = employees.value.findIndex(e => e.id === resetTarget.value.id)
+    if (idx !== -1) employees.value[idx] = { ...employees.value[idx], ...data }
+    if (detail.value?.id === resetTarget.value.id) {
+      detail.value = { ...detail.value, ...data }
+      review.value = null
+    }
+    resetConfirmModal.value = false
+  } finally {
+    resetting.value = false
+  }
 }
 
 onMounted(load)

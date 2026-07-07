@@ -179,6 +179,7 @@ model AygFoodsEmployee {
 
   called            Boolean   @default(false)
   calledAt          DateTime?
+  isTest            Boolean   @default(false)
 
   review            OnboardingReview?
 

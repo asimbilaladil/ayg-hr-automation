@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { auth, apiKeyAuth } from '../middleware/auth';
 import { rbac } from '../middleware/rbac';
-import { triggerSync, listEmployees, markCalled, updateEmployee, upsertReview, getReview, getCandidateByPhone } from '../controllers/revel.controller';
+import { triggerSync, listEmployees, markCalled, updateEmployee, upsertReview, getReview, getCandidateByPhone, resetTestRecord, createTestRecord } from '../controllers/revel.controller';
 
 const router = Router();
 
@@ -27,5 +27,11 @@ router.post('/employees/:id/review', upsertReview);
 
 // GET  /api/revel/employees/:id/review        — fetch review for an employee
 router.get('/employees/:id/review', getReview);
+
+// POST /api/revel/employees/:id/reset         — reset a test record (admin only, isTest=true only)
+router.post('/employees/:id/reset', rbac('ADMIN'), resetTestRecord);
+
+// POST /api/revel/employees/test              — create a new test record (admin only)
+router.post('/employees/test', rbac('ADMIN'), createTestRecord);
 
 export default router;
