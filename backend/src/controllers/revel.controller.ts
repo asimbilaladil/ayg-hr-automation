@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../lib/prisma';
 import { syncAygFoodsEmployees } from '../revel/revel.sync.service';
 import { createNotification } from '../services/notifications.service';
+import { extractRatingWithAI } from '../services/rating-ai.service';
 
 export async function triggerSync(req: Request, res: Response, next: NextFunction) {
   try {
@@ -67,6 +68,7 @@ export async function updateEmployee(req: Request, res: Response, next: NextFunc
 // Maps VAPI answer category → DB fields
 const CATEGORY_MAP: Record<string, { notes: string; rating?: string }> = {
   'Role Experience':    { notes: 'q1Notes', rating: 'q1Rating' },
+  'Role Impression':    { notes: 'q1Notes', rating: 'q1Rating' },
   'Training & Support': { notes: 'q2Notes', rating: 'q2Rating' },
   'Surprises':          { notes: 'q3Notes' },
   'Culture Fit':        { notes: 'q4Notes', rating: 'q4Rating' },
@@ -75,13 +77,6 @@ const CATEGORY_MAP: Record<string, { notes: string; rating?: string }> = {
   'Clarity Needed':     { notes: 'q6Notes' },
   'Support Needed':     { notes: 'q7Notes' },
 };
-
-// Extract the last single-digit 1-5 rating mentioned in answer text
-function extractRatingFromText(text: string): number | undefined {
-  const matches = [...text.matchAll(/\b([1-5])\b/g)];
-  if (!matches.length) return undefined;
-  return Number(matches[matches.length - 1][1]);
-}
 
 type Turn = { role: 'AI' | 'User'; text: string };
 
@@ -120,17 +115,19 @@ function extractAnswerFromTranscript(turns: Turn[], question: string): string | 
   return userTexts.length ? userTexts.join(' ') : null;
 }
 
-function mapAnswers(answers: Array<{ category: string; question?: string; answer: string; rating?: number }>) {
+async function mapAnswers(answers: Array<{ category: string; question?: string; answer: string; rating?: number }>) {
   const mapped: Record<string, any> = {};
-  for (const a of answers) {
+  await Promise.all(answers.map(async a => {
     const mapping = CATEGORY_MAP[a.category];
-    if (!mapping) continue;
+    if (!mapping) return;
     if (a.answer) mapped[mapping.notes] = a.answer;
     if (mapping.rating) {
-      const rating = a.rating != null ? Number(a.rating) : extractRatingFromText(a.answer);
+      const rating = a.rating != null
+        ? Number(a.rating)
+        : await extractRatingWithAI(a.question ?? a.category, a.answer);
       if (rating) mapped[mapping.rating] = rating;
     }
-  }
+  }));
   return mapped;
 }
 
@@ -168,7 +165,7 @@ export async function upsertReview(req: Request, res: Response, next: NextFuncti
     });
 
     const cleanedAnswersStr = answersArr.length ? JSON.stringify(answersArr) : answersStr;
-    const fromAnswers = answersArr.length ? mapAnswers(answersArr) : {};
+    const fromAnswers = answersArr.length ? await mapAnswers(answersArr) : {};
 
     const data = {
       reviewType,
