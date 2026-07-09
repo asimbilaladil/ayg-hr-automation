@@ -447,6 +447,7 @@ const pendingCount = computed(() => employees.value.filter(e => !e.called).lengt
 // Parse stored answers JSON string into array, merging structured q*Rating fields by category
 const CATEGORY_RATING_MAP = {
   'Role Experience':    'q1Rating',
+  'Role Impression':    'q1Rating',
   'Training & Support': 'q2Rating',
   'Culture Fit':        'q4Rating',
 }
