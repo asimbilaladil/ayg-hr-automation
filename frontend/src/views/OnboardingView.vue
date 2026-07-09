@@ -335,9 +335,50 @@
               </div>
 
               <!-- Transcript -->
-              <div v-if="review.transcript" class="rounded-xl border border-gray-200 bg-white p-4">
-                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Call Transcript</p>
-                <p class="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap max-h-64 overflow-y-auto">{{ review.transcript }}</p>
+              <div v-if="review.transcript" class="rounded-xl border border-gray-200 bg-white overflow-hidden">
+                <div class="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100">
+                  <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    Call Transcript
+                    <span v-if="transcriptTurns.length" class="font-normal normal-case text-gray-400">· {{ transcriptTurns.length }} turns</span>
+                  </p>
+                  <button
+                    class="text-xs font-medium px-2 py-1 rounded-md transition-colors inline-flex items-center gap-1"
+                    :class="transcriptCopied ? 'text-green-600' : 'text-gray-400 hover:text-brand-600 hover:bg-brand-50'"
+                    @click="copyTranscript"
+                  >
+                    <svg v-if="!transcriptCopied" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                    </svg>
+                    <svg v-else class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                    </svg>
+                    {{ transcriptCopied ? 'Copied' : 'Copy' }}
+                  </button>
+                </div>
+
+                <!-- Chat-style turns -->
+                <div v-if="transcriptTurns.length" class="max-h-80 overflow-y-auto px-4 py-4 space-y-3 bg-gray-50/60">
+                  <div
+                    v-for="(t, idx) in transcriptTurns" :key="idx"
+                    class="flex" :class="t.role === 'User' ? 'justify-end' : 'justify-start'"
+                  >
+                    <div class="max-w-[85%]">
+                      <p
+                        class="text-[10px] font-medium text-gray-400 mb-0.5 px-1"
+                        :class="t.role === 'User' ? 'text-right' : 'text-left'"
+                      >{{ t.role === 'User' ? (detail.firstName || 'Employee') : 'Riley · AI' }}</p>
+                      <div
+                        class="rounded-2xl px-3.5 py-2 text-sm leading-relaxed"
+                        :class="t.role === 'User'
+                          ? 'bg-brand-600 text-white rounded-br-sm'
+                          : 'bg-white border border-gray-200 text-gray-700 rounded-bl-sm'"
+                      >{{ t.text }}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Fallback: raw text if turns couldn't be parsed -->
+                <p v-else class="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap max-h-64 overflow-y-auto px-4 py-4">{{ review.transcript }}</p>
               </div>
             </template>
           </div>
@@ -488,6 +529,29 @@ const averageScore = computed(() => {
   if (!scores.length) return null
   return (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1)
 })
+
+// Parse the raw "AI: ...\nUser: ...\n" transcript into chat turns for display
+const transcriptTurns = computed(() => {
+  if (!review.value?.transcript) return []
+  return review.value.transcript
+    .split('\n')
+    .map(l => l.trim())
+    .filter(l => l.startsWith('AI:') || l.startsWith('User:'))
+    .map(l => l.startsWith('AI:')
+      ? { role: 'AI', text: l.slice(3).trim() }
+      : { role: 'User', text: l.slice(5).trim() })
+    .filter(t => t.text)
+})
+
+const transcriptCopied = ref(false)
+async function copyTranscript() {
+  if (!review.value?.transcript) return
+  try {
+    await navigator.clipboard.writeText(review.value.transcript)
+    transcriptCopied.value = true
+    setTimeout(() => { transcriptCopied.value = false }, 1500)
+  } catch { /* clipboard unavailable, ignore */ }
+}
 
 function formatDate(iso) {
   if (!iso) return ''
