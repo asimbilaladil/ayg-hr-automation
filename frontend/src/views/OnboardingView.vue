@@ -615,14 +615,19 @@ async function openDetail(emp) {
     recordingLoading.value = true
     try {
       const { data: blob } = await onboardingApi.getRecording(emp.id)
+      if (!(blob instanceof Blob) || blob.size === 0) {
+        throw new Error(`Unexpected recording response: ${typeof blob}, size=${blob?.size}`)
+      }
       recordingUrl.value = URL.createObjectURL(blob)
     } catch (err) {
       recordingUrl.value = null
+      console.error('Failed to load onboarding call recording:', err)
       // error responses come back as a Blob too (responseType: 'blob'), so parse it
       try {
         const text = await err.response?.data?.text?.()
         recordingError.value = text ? JSON.parse(text).error : null
-      } catch {
+      } catch (parseErr) {
+        console.error('Failed to parse recording error body:', parseErr)
         recordingError.value = null
       }
     } finally {
