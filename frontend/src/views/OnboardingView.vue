@@ -332,7 +332,7 @@
                   <p class="text-xs text-gray-500 mb-1">Recording</p>
                   <audio v-if="recordingUrl" controls class="w-full h-8" :src="recordingUrl" />
                   <p v-else-if="recordingLoading" class="text-xs text-gray-400">Loading recording…</p>
-                  <p v-else class="text-xs text-red-500">Recording unavailable</p>
+                  <p v-else class="text-xs text-red-500">{{ recordingError || 'Recording unavailable' }}</p>
                 </div>
               </div>
 
@@ -472,12 +472,14 @@ const activeFilter = ref('all')
 const detail        = ref(null)
 const review        = ref(null)
 const reviewLoading = ref(false)
-const recordingUrl  = ref(null)
+const recordingUrl   = ref(null)
+const recordingError = ref(null)
 const recordingLoading = ref(false)
 
 function revokeRecordingUrl() {
   if (recordingUrl.value) URL.revokeObjectURL(recordingUrl.value)
   recordingUrl.value = null
+  recordingError.value = null
 }
 
 const filters = [
@@ -614,8 +616,15 @@ async function openDetail(emp) {
     try {
       const { data: blob } = await onboardingApi.getRecording(emp.id)
       recordingUrl.value = URL.createObjectURL(blob)
-    } catch {
+    } catch (err) {
       recordingUrl.value = null
+      // error responses come back as a Blob too (responseType: 'blob'), so parse it
+      try {
+        const text = await err.response?.data?.text?.()
+        recordingError.value = text ? JSON.parse(text).error : null
+      } catch {
+        recordingError.value = null
+      }
     } finally {
       recordingLoading.value = false
     }

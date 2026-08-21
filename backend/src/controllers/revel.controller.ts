@@ -290,7 +290,13 @@ export async function getRecording(req: Request, res: Response, next: NextFuncti
       headers: { Authorization: `Bearer ${apiKey}` },
     });
     if (!vapiRes.ok || !vapiRes.body) {
-      res.status(502).json({ error: 'Failed to fetch recording from VAPI' });
+      // Surface VAPI's own reason (e.g. "This call exceeds your retention window")
+      // instead of a generic error — the recording may simply no longer exist on
+      // their end (their retention policy applies regardless of our own data).
+      const detail = await vapiRes.text().catch(() => '');
+      let message = 'Failed to fetch recording from VAPI';
+      try { message = JSON.parse(detail).message || message; } catch { /* not JSON */ }
+      res.status(vapiRes.status === 404 ? 404 : 502).json({ error: message });
       return;
     }
 
