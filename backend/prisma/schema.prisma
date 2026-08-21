@@ -196,7 +196,7 @@ model OnboardingReview {
 
   reviewType  String?  // e.g. "30_day"
 
-  // Q1 — How are you finding your role so far?
+  // Q1 — Did you receive an orientation through our AYG slideshow and were you given all the tools talked about?
   q1Rating    Int?
   q1Notes     String?
 
@@ -205,19 +205,23 @@ model OnboardingReview {
   q2Notes     String?
 
   // Q3 — Are there any aspects of the job that have surprised you?
+  q3Rating    Int?
   q3Notes     String?
 
   // Q4 — How do you feel about the team dynamics and company culture?
   q4Rating    Int?
   q4Notes     String?
 
-  // Q5 — What have you accomplished so far?
+  // Q5 — Did you receive a training schedule with dates and times and a trainer who would be assigned to you with proper checklist to follow?
+  q5Rating    Int?
   q5Notes     String?
 
   // Q6 — Is there anything you feel you need more clarity on?
+  q6Rating    Int?
   q6Notes     String?
 
   // Q7 — How can we support you better?
+  q7Rating    Int?
   q7Notes     String?
 
   overallNotes  String?

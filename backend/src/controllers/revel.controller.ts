@@ -67,15 +67,13 @@ export async function updateEmployee(req: Request, res: Response, next: NextFunc
 
 // Maps VAPI answer category → DB fields
 const CATEGORY_MAP: Record<string, { notes: string; rating?: string }> = {
-  'Role Experience':    { notes: 'q1Notes', rating: 'q1Rating' },
-  'Role Impression':    { notes: 'q1Notes', rating: 'q1Rating' },
-  'Training & Support': { notes: 'q2Notes', rating: 'q2Rating' },
-  'Surprises':          { notes: 'q3Notes' },
-  'Culture Fit':        { notes: 'q4Notes', rating: 'q4Rating' },
-  'Accomplishments':    { notes: 'q5Notes' },
-  'Clarity':            { notes: 'q6Notes' },
-  'Clarity Needed':     { notes: 'q6Notes' },
-  'Support Needed':     { notes: 'q7Notes' },
+  'Orientation & Tools':  { notes: 'q1Notes', rating: 'q1Rating' },
+  'Training & Support':   { notes: 'q2Notes', rating: 'q2Rating' },
+  'Job Surprises':        { notes: 'q3Notes', rating: 'q3Rating' },
+  'Team & Culture':       { notes: 'q4Notes', rating: 'q4Rating' },
+  'Training Schedule':    { notes: 'q5Notes', rating: 'q5Rating' },
+  'Clarity Needed':       { notes: 'q6Notes', rating: 'q6Rating' },
+  'Support Needed':       { notes: 'q7Notes', rating: 'q7Rating' },
 };
 
 type Turn = { role: 'AI' | 'User'; text: string };
@@ -91,17 +89,32 @@ function parseTranscriptTurns(transcript: string): Turn[] {
 
 // Given the transcript turns and a question string, extract only the user
 // utterances that directly follow the AI turn asking that question.
-function extractAnswerFromTranscript(turns: Turn[], question: string): string | null {
+// `searchFrom` bounds the scan to turns at/after the previous question's match,
+// since consecutive questions are asked in order — without it, an AI turn that
+// transitions into the NEXT question (and echoes back keywords from this one,
+// e.g. "...your training schedule... Now, do you feel you've received adequate
+// training and support?") could otherwise be picked up as a match for THIS one.
+function extractAnswerFromTranscript(
+  turns: Turn[],
+  question: string,
+  searchFrom = 0,
+): { text: string | null; matchedIdx: number } {
   const keywords = question.toLowerCase().split(/\s+/).filter(w => w.length > 4).slice(0, 6);
   const threshold = Math.min(3, Math.ceil(keywords.length * 0.5));
 
   let bestIdx = -1;
-  for (let i = 0; i < turns.length; i++) {
+  let bestHits = 0;
+  for (let i = searchFrom; i < turns.length; i++) {
     if (turns[i].role !== 'AI') continue;
     const hit = keywords.filter(kw => turns[i].text.toLowerCase().includes(kw)).length;
-    if (hit >= threshold) bestIdx = i; // keep last match (handles rephrased questions)
+    // prefer the turn with the most keyword hits; ties go to the later turn
+    // (handles the AI rephrasing the same question again mid-conversation)
+    if (hit >= threshold && hit >= bestHits) {
+      bestHits = hit;
+      bestIdx = i;
+    }
   }
-  if (bestIdx === -1) return null;
+  if (bestIdx === -1) return { text: null, matchedIdx: searchFrom };
 
   const userTexts: string[] = [];
   for (let i = bestIdx + 1; i < turns.length; i++) {
@@ -112,7 +125,7 @@ function extractAnswerFromTranscript(turns: Turn[], question: string): string | 
     }
     // if no user speech yet and we hit another AI turn, keep scanning
   }
-  return userTexts.length ? userTexts.join(' ') : null;
+  return { text: userTexts.length ? userTexts.join(' ') : null, matchedIdx: bestIdx };
 }
 
 async function mapAnswers(answers: Array<{ category: string; question?: string; answer: string; rating?: number }>) {
@@ -138,9 +151,11 @@ export async function upsertReview(req: Request, res: Response, next: NextFuncti
       reviewType,
       q1Rating, q1Notes,
       q2Rating, q2Notes,
-      q3Notes,
+      q3Rating, q3Notes,
       q4Rating, q4Notes,
-      q5Notes, q6Notes, q7Notes,
+      q5Rating, q5Notes,
+      q6Rating, q6Notes,
+      q7Rating, q7Notes,
       overallNotes, reviewedAt,
       transcript, recordingUrl, callStatus, answers,
     } = req.body;
@@ -158,9 +173,11 @@ export async function upsertReview(req: Request, res: Response, next: NextFuncti
     // Clean each answer using the transcript so only the relevant user utterances
     // are stored (VAPI tends to bundle all prior speech into each answer).
     const turns = transcript ? parseTranscriptTurns(transcript) : [];
+    let searchCursor = 0;
     const answersArr = rawAnswersArr.map(a => {
       if (!turns.length || !a.question) return a;
-      const clean = extractAnswerFromTranscript(turns, a.question);
+      const { text: clean, matchedIdx } = extractAnswerFromTranscript(turns, a.question, searchCursor);
+      if (clean) searchCursor = matchedIdx + 1;
       return clean ? { ...a, answer: clean } : a;
     });
 
@@ -174,11 +191,15 @@ export async function upsertReview(req: Request, res: Response, next: NextFuncti
       q1Notes:  q1Notes  ?? fromAnswers.q1Notes,
       q2Rating: q2Rating ?? fromAnswers.q2Rating,
       q2Notes:  q2Notes  ?? fromAnswers.q2Notes,
+      q3Rating: q3Rating ?? fromAnswers.q3Rating,
       q3Notes:  q3Notes  ?? fromAnswers.q3Notes,
       q4Rating: q4Rating ?? fromAnswers.q4Rating,
       q4Notes:  q4Notes  ?? fromAnswers.q4Notes,
+      q5Rating: q5Rating ?? fromAnswers.q5Rating,
       q5Notes:  q5Notes  ?? fromAnswers.q5Notes,
+      q6Rating: q6Rating ?? fromAnswers.q6Rating,
       q6Notes:  q6Notes  ?? fromAnswers.q6Notes,
+      q7Rating: q7Rating ?? fromAnswers.q7Rating,
       q7Notes:  q7Notes  ?? fromAnswers.q7Notes,
       overallNotes,
       transcript, recordingUrl, callStatus,

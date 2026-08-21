@@ -487,10 +487,13 @@ const pendingCount = computed(() => employees.value.filter(e => !e.called).lengt
 
 // Parse stored answers JSON string into array, merging structured q*Rating fields by category
 const CATEGORY_RATING_MAP = {
-  'Role Experience':    'q1Rating',
-  'Role Impression':    'q1Rating',
-  'Training & Support': 'q2Rating',
-  'Culture Fit':        'q4Rating',
+  'Orientation & Tools': 'q1Rating',
+  'Training & Support':  'q2Rating',
+  'Job Surprises':       'q3Rating',
+  'Team & Culture':      'q4Rating',
+  'Training Schedule':   'q5Rating',
+  'Clarity Needed':      'q6Rating',
+  'Support Needed':      'q7Rating',
 }
 const parsedAnswers = computed(() => {
   if (!review.value?.answers) return []
@@ -510,13 +513,13 @@ const parsedAnswers = computed(() => {
 const structuredQuestions = computed(() => {
   if (!review.value) return []
   return [
-    { category: 'Role Experience',    label: 'How are you finding your role so far?',                   rating: review.value.q1Rating, notes: review.value.q1Notes },
-    { category: 'Training & Support', label: 'Received adequate training and support?',                 rating: review.value.q2Rating, notes: review.value.q2Notes },
-    { category: 'Surprises',          label: 'Any aspects of the job that surprised you?',              rating: null,                  notes: review.value.q3Notes },
-    { category: 'Culture Fit',        label: 'How do you feel about team dynamics and company culture?', rating: review.value.q4Rating, notes: review.value.q4Notes },
-    { category: 'Accomplishments',    label: 'What have you accomplished so far?',                      rating: null,                  notes: review.value.q5Notes },
-    { category: 'Clarity',            label: 'Is there anything you need more clarity on?',             rating: null,                  notes: review.value.q6Notes },
-    { category: 'Support Needed',     label: 'How can we support you better?',                          rating: null,                  notes: review.value.q7Notes },
+    { category: 'Orientation & Tools', label: 'Received orientation through the AYG slideshow and all the tools talked about?', rating: review.value.q1Rating, notes: review.value.q1Notes },
+    { category: 'Training Schedule',   label: 'Received a training schedule with dates/times and an assigned trainer with a checklist?', rating: review.value.q5Rating, notes: review.value.q5Notes },
+    { category: 'Training & Support',  label: 'Received adequate training and support?',                 rating: review.value.q2Rating, notes: review.value.q2Notes },
+    { category: 'Job Surprises',       label: 'Any aspects of the job that surprised you?',              rating: review.value.q3Rating, notes: review.value.q3Notes },
+    { category: 'Team & Culture',      label: 'How do you feel about team dynamics and company culture?', rating: review.value.q4Rating, notes: review.value.q4Notes },
+    { category: 'Clarity Needed',      label: 'Is there anything you need more clarity on?',             rating: review.value.q6Rating, notes: review.value.q6Notes },
+    { category: 'Support Needed',      label: 'How can we support you better?',                          rating: review.value.q7Rating, notes: review.value.q7Notes },
   ].filter(q => q.notes || q.rating)
 })
 
@@ -524,7 +527,10 @@ const averageScore = computed(() => {
   if (!review.value) return null
   // prefer ratings from parsed answers array
   const fromAnswers = parsedAnswers.value.map(a => a.rating).filter(Boolean)
-  const fromFields  = [review.value.q1Rating, review.value.q2Rating, review.value.q4Rating].filter(Boolean)
+  const fromFields  = [
+    review.value.q1Rating, review.value.q2Rating, review.value.q3Rating,
+    review.value.q4Rating, review.value.q5Rating, review.value.q6Rating, review.value.q7Rating,
+  ].filter(Boolean)
   const scores = fromAnswers.length ? fromAnswers : fromFields
   if (!scores.length) return null
   return (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1)
