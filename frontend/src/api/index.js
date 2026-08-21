@@ -101,6 +101,7 @@ export const onboardingApi = {
   list: (params) => api.get('/api/revel/employees', { params }),
   markCalled: (id, called) => api.patch(`/api/revel/employees/${id}/called`, { called }),
   getReview: (id) => api.get(`/api/revel/employees/${id}/review`),
+  getRecording: (id) => api.get(`/api/revel/employees/${id}/recording`, { responseType: 'blob' }),
   upsertReview: (id, data) => api.post(`/api/revel/employees/${id}/review`, data),
   reset: (id) => api.post(`/api/revel/employees/${id}/reset`),
   createTest: (data) => api.post('/api/revel/employees/test', data),

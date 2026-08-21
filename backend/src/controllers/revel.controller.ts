@@ -128,6 +128,15 @@ function extractAnswerFromTranscript(
   return { text: userTexts.length ? userTexts.join(' ') : null, matchedIdx: bestIdx };
 }
 
+// VAPI's recordingUrl is stored as "{callId}-{epochMillis}-{randomId}-mono.wav" —
+// used to recover the call id for recordings saved before vapiCallId was captured
+// explicitly.
+function extractCallIdFromUrl(url?: string | null): string | undefined {
+  if (!url) return undefined;
+  const match = url.match(/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})-\d+-/i);
+  return match?.[1];
+}
+
 async function mapAnswers(answers: Array<{ category: string; question?: string; answer: string; rating?: number }>) {
   const mapped: Record<string, any> = {};
   await Promise.all(answers.map(async a => {
@@ -157,7 +166,7 @@ export async function upsertReview(req: Request, res: Response, next: NextFuncti
       q6Rating, q6Notes,
       q7Rating, q7Notes,
       overallNotes, reviewedAt,
-      transcript, recordingUrl, callStatus, answers,
+      transcript, recordingUrl, vapiCallId, callStatus, answers,
     } = req.body;
 
     const answersStr = answers !== undefined
@@ -203,6 +212,7 @@ export async function upsertReview(req: Request, res: Response, next: NextFuncti
       q7Notes:  q7Notes  ?? fromAnswers.q7Notes,
       overallNotes,
       transcript, recordingUrl, callStatus,
+      vapiCallId: vapiCallId ?? extractCallIdFromUrl(recordingUrl),
       answers: cleanedAnswersStr,
       reviewedAt: reviewedAt ? new Date(reviewedAt) : new Date(),
     };
@@ -251,6 +261,41 @@ export async function getReview(req: Request, res: Response, next: NextFunction)
     const { id } = req.params;
     const review = await prisma.onboardingReview.findUnique({ where: { employeeId: id } });
     res.json(review ?? null);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Since July 2026, VAPI's recordingUrl points at private storage and can no longer
+// be fetched directly — it now requires calling VAPI's own API with a private key,
+// which 302-redirects to a short-lived signed URL. This proxies that exchange so the
+// VAPI key never reaches the browser, and streams the audio back to the client.
+export async function getRecording(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const review = await prisma.onboardingReview.findUnique({ where: { employeeId: id } });
+    const callId = review?.vapiCallId ?? extractCallIdFromUrl(review?.recordingUrl);
+    if (!review?.recordingUrl || !callId) {
+      res.status(404).json({ error: 'No recording found' });
+      return;
+    }
+
+    const apiKey = process.env.VAPI_PRIVATE_API_KEY;
+    if (!apiKey) {
+      res.status(500).json({ error: 'VAPI_PRIVATE_API_KEY is not configured' });
+      return;
+    }
+
+    const vapiRes = await fetch(`https://api.vapi.ai/call/${callId}/mono-recording`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    if (!vapiRes.ok || !vapiRes.body) {
+      res.status(502).json({ error: 'Failed to fetch recording from VAPI' });
+      return;
+    }
+
+    res.setHeader('Content-Type', vapiRes.headers.get('content-type') || 'audio/wav');
+    res.send(Buffer.from(await vapiRes.arrayBuffer()));
   } catch (err) {
     next(err);
   }

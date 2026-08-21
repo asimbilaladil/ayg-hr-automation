@@ -330,7 +330,9 @@
                 </div>
                 <div v-if="review.recordingUrl">
                   <p class="text-xs text-gray-500 mb-1">Recording</p>
-                  <audio controls class="w-full h-8" :src="review.recordingUrl" />
+                  <audio v-if="recordingUrl" controls class="w-full h-8" :src="recordingUrl" />
+                  <p v-else-if="recordingLoading" class="text-xs text-gray-400">Loading recording…</p>
+                  <p v-else class="text-xs text-red-500">Recording unavailable</p>
                 </div>
               </div>
 
@@ -470,6 +472,13 @@ const activeFilter = ref('all')
 const detail        = ref(null)
 const review        = ref(null)
 const reviewLoading = ref(false)
+const recordingUrl  = ref(null)
+const recordingLoading = ref(false)
+
+function revokeRecordingUrl() {
+  if (recordingUrl.value) URL.revokeObjectURL(recordingUrl.value)
+  recordingUrl.value = null
+}
 
 const filters = [
   { label: 'All',     value: 'all' },
@@ -588,6 +597,7 @@ async function toggleCalled(emp) {
 async function openDetail(emp) {
   detail.value = emp
   review.value = emp.review ?? null
+  revokeRecordingUrl()
 
   if (!emp.review) {
     reviewLoading.value = true
@@ -598,11 +608,24 @@ async function openDetail(emp) {
       reviewLoading.value = false
     }
   }
+
+  if (review.value?.recordingUrl) {
+    recordingLoading.value = true
+    try {
+      const { data: blob } = await onboardingApi.getRecording(emp.id)
+      recordingUrl.value = URL.createObjectURL(blob)
+    } catch {
+      recordingUrl.value = null
+    } finally {
+      recordingLoading.value = false
+    }
+  }
 }
 
 function closeDetail() {
   detail.value = null
   review.value = null
+  revokeRecordingUrl()
 }
 
 const resetConfirmModal = ref(false)

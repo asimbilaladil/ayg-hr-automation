@@ -229,6 +229,7 @@ model OnboardingReview {
   // VAPI / n8n call data
   transcript    String?
   recordingUrl  String?
+  vapiCallId    String?  // VAPI call id — needed to re-fetch the recording via VAPI's API (recordingUrl alone stopped being directly fetchable after VAPI's July 2026 auth change)
   callStatus    String?
   answers       String?  // raw JSON array from VAPI
 
