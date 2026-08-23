@@ -9,8 +9,12 @@ export const CreateCandidateSchema = z.object({
   hiringManager: z.string().optional(),
   status: z.string().default('pending'),
   receivedAt: z.string().datetime().optional(),
-  emailId: z.string().min(1),
+  externalId: z.string().min(1),
   resumeUrl: z.string().optional(),
+});
+
+export const BulkImportCandidatesSchema = z.object({
+  candidates: z.array(CreateCandidateSchema).min(1),
 });
 
 export const UpdateAIReviewSchema = z.object({
@@ -69,6 +73,7 @@ export const CandidateQuerySchema = z.object({
 });
 
 export type CreateCandidateInput = z.infer<typeof CreateCandidateSchema>;
+export type BulkImportCandidatesInput = z.infer<typeof BulkImportCandidatesSchema>;
 export type UpdateAIReviewInput = z.infer<typeof UpdateAIReviewSchema>;
 export type UpdateCallResultInput = z.infer<typeof UpdateCallResultSchema>;
 export type UpdateCandidateInput = z.infer<typeof UpdateCandidateSchema>;

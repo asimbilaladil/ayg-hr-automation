@@ -2,10 +2,12 @@ import { prisma } from '../lib/prisma';
 import {
   CreatePostingInput,
   UpdatePostingInput,
+  PostingQuery,
 } from '../schemas/posting.schema';
 
-export async function listPostings() {
+export async function listPostings(query?: Pick<PostingQuery, 'isActive'>) {
   return prisma.posting.findMany({
+    where: query?.isActive !== undefined ? { isActive: query.isActive } : undefined,
     orderBy: { name: 'asc' },
     include: {
       _count: {

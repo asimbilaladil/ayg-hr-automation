@@ -46,8 +46,8 @@
           <h3 class="font-semibold text-gray-900 mb-4">Contact Information</h3>
           <dl class="space-y-3">
             <div class="flex justify-between">
-              <dt class="text-sm text-gray-500">Email</dt>
-              <dd class="text-sm font-medium text-gray-900 break-all">{{ candidate.emailId }}</dd>
+              <dt class="text-sm text-gray-500">Application ID</dt>
+              <dd class="text-sm font-medium text-gray-900 break-all">{{ candidate.externalId }}</dd>
             </div>
             <div class="flex justify-between">
               <dt class="text-sm text-gray-500">Phone</dt>
@@ -188,8 +188,8 @@ const initials = computed(() => {
 
 const resumeUrl = computed(() => {
   // Use API endpoint to serve the resume
-  if (candidate.value?.emailId) {
-    return `/api/candidates/resume/${candidate.value.emailId}`
+  if (candidate.value?.externalId) {
+    return `/api/candidates/resume/${candidate.value.externalId}`
   }
   return null
 })

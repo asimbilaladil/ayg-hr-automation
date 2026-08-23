@@ -14,21 +14,21 @@ enum Role {
 }
 
 model User {
-  id           String @id @default(cuid())
+  id           String   @id @default(cuid())
   name         String
-  email        String @unique
+  email        String   @unique
   passwordHash String?
-  role         Role   @default(HR)
-  isActive     Boolean @default(true)
+  role         Role     @default(HR)
+  isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
 
   appointments          Appointment[]         @relation("ManagerAppointments")
   managerAvailabilities ManagerAvailability[] @relation("ManagerAvailabilityRelation")
 
-  locations           Location[]
+  locations Location[]
 
-  hiringCandidates    Candidate[] @relation("HiringManager")
-  recruitedCandidates Candidate[] @relation("Recruiter")
+  hiringCandidates    Candidate[]        @relation("HiringManager")
+  recruitedCandidates Candidate[]        @relation("Recruiter")
   notifications       Notification[]
   aygFoodsEmployees   AygFoodsEmployee[] @relation("ManagerAygFoodsEmployees")
 }
@@ -71,13 +71,13 @@ model Posting {
 }
 
 model Candidate {
-  id            String   @id @default(cuid())
-  name          String
-  phone         String?
-  dateApplied   String?
-  status        String   @default("pending")
-  emailId       String   @unique
-  resumeUrl     String?
+  id          String  @id @default(cuid())
+  name        String
+  phone       String?
+  dateApplied String?
+  status      String  @default("pending")
+  externalId  String  @unique
+  resumeUrl   String?
 
   // AI review fields (populated by n8n after Claude analysis)
   aiScore           Float?
@@ -87,44 +87,44 @@ model Candidate {
   aiSummary         String?
 
   // Call transcript + recording (populated by n8n after Vapi call)
-  transcript        String?
-  recordingUrl      String?
+  transcript   String?
+  recordingUrl String?
 
   // Interview answers as JSON array [{question, category, answer}]
-  interviewAnswers  String?
+  interviewAnswers String?
 
   // Outbound call metadata (set by n8n / Vapi)
-  endedReason       String?    // VAPI ended-reason: voicemail, hangup, silence-timed-out, etc.
-  nextCallAt        DateTime?  // Cooldown expiry — null means call anytime; set to now+1h on voicemail
-  lastCallAt        DateTime?  // Timestamp of the most recent call attempt
+  endedReason String? // VAPI ended-reason: voicemail, hangup, silence-timed-out, etc.
+  nextCallAt  DateTime? // Cooldown expiry — null means call anytime; set to now+1h on voicemail
+  lastCallAt  DateTime? // Timestamp of the most recent call attempt
 
   // Appointment cancellation
-  cancelReason      String?
-  cancelledAt       DateTime?
+  cancelReason String?
+  cancelledAt  DateTime?
 
-  posting_rel     Posting  @relation(fields: [postingId], references: [id])
-  postingId       String
+  posting_rel Posting @relation(fields: [postingId], references: [id])
+  postingId   String
 
-  location_rel    Location @relation(fields: [locationId], references: [id])
-  locationId      String
+  location_rel Location @relation(fields: [locationId], references: [id])
+  locationId   String
 
-  hiringManager_rel User?  @relation("HiringManager", fields: [hiringManagerId], references: [id])
+  hiringManager_rel User?   @relation("HiringManager", fields: [hiringManagerId], references: [id])
   hiringManagerId   String?
 
-  recruiter_rel    User?   @relation("Recruiter", fields: [recruiterId], references: [id])
-  recruiterId      String?
+  recruiter_rel User?   @relation("Recruiter", fields: [recruiterId], references: [id])
+  recruiterId   String?
 
-  appointment      Appointment?
+  appointment Appointment?
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Appointment {
-  id            String   @id @default(cuid())
+  id String @id @default(cuid())
 
   candidate_rel Candidate @relation(fields: [candidateId], references: [id])
-  candidateId   String   @unique
+  candidateId   String    @unique
 
   interviewDate DateTime
   startTime     String
@@ -134,15 +134,15 @@ model Appointment {
   location_rel Location @relation(fields: [locationId], references: [id])
   locationId   String
 
-  manager_rel  User?    @relation("ManagerAppointments", fields: [managerId], references: [id])
-  managerId    String?
+  manager_rel User?   @relation("ManagerAppointments", fields: [managerId], references: [id])
+  managerId   String?
 
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model ManagerAvailability {
-  id           String   @id @default(cuid())
+  id           String  @id @default(cuid())
   dayOfWeek    String
   startTime    String
   endTime      String
@@ -152,11 +152,11 @@ model ManagerAvailability {
   location_rel Location @relation(fields: [locationId], references: [id])
   locationId   String
 
-  manager_rel  User     @relation("ManagerAvailabilityRelation", fields: [managerId], references: [id])
-  managerId    String
+  manager_rel User   @relation("ManagerAvailabilityRelation", fields: [managerId], references: [id])
+  managerId   String
 
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model AygFoodsEmployee {
@@ -171,70 +171,79 @@ model AygFoodsEmployee {
   establishmentId   Int
   establishmentName String?
 
-  locationId        String?
-  location          Location? @relation(fields: [locationId], references: [id])
+  locationId String?
+  location   Location? @relation(fields: [locationId], references: [id])
 
-  managerId         String?
-  manager           User?     @relation("ManagerAygFoodsEmployees", fields: [managerId], references: [id])
+  managerId String?
+  manager   User?   @relation("ManagerAygFoodsEmployees", fields: [managerId], references: [id])
 
-  called            Boolean   @default(false)
-  calledAt          DateTime?
-  isTest            Boolean   @default(false)
+  called   Boolean   @default(false)
+  calledAt DateTime?
+  isTest   Boolean   @default(false)
 
-  review            OnboardingReview?
+  review OnboardingReview?
 
-  syncedAt          DateTime  @default(now())
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  syncedAt  DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model OnboardingReview {
-  id          String   @id @default(cuid())
+  id String @id @default(cuid())
 
-  employeeId  String   @unique
-  employee    AygFoodsEmployee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId String           @unique
+  employee   AygFoodsEmployee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
-  reviewType  String?  // e.g. "30_day"
+  reviewType String? // e.g. "30_day"
 
   // Q1 — Did you receive an orientation through our AYG slideshow and were you given all the tools talked about?
-  q1Rating    Int?
-  q1Notes     String?
+  q1Rating Int?
+  q1Notes  String?
 
   // Q2 — Do you feel you have received adequate training and support?
-  q2Rating    Int?
-  q2Notes     String?
+  q2Rating Int?
+  q2Notes  String?
 
   // Q3 — Are there any aspects of the job that have surprised you?
-  q3Rating    Int?
-  q3Notes     String?
+  q3Rating Int?
+  q3Notes  String?
 
   // Q4 — How do you feel about the team dynamics and company culture?
-  q4Rating    Int?
-  q4Notes     String?
+  q4Rating Int?
+  q4Notes  String?
 
   // Q5 — Did you receive a training schedule with dates and times and a trainer who would be assigned to you with proper checklist to follow?
-  q5Rating    Int?
-  q5Notes     String?
+  q5Rating Int?
+  q5Notes  String?
 
   // Q6 — Is there anything you feel you need more clarity on?
-  q6Rating    Int?
-  q6Notes     String?
+  q6Rating Int?
+  q6Notes  String?
 
   // Q7 — How can we support you better?
-  q7Rating    Int?
-  q7Notes     String?
+  q7Rating Int?
+  q7Notes  String?
 
-  overallNotes  String?
+  overallNotes String?
 
   // VAPI / n8n call data
-  transcript    String?
-  recordingUrl  String?
-  vapiCallId    String?  // VAPI call id — needed to re-fetch the recording via VAPI's API (recordingUrl alone stopped being directly fetchable after VAPI's July 2026 auth change)
-  callStatus    String?
-  answers       String?  // raw JSON array from VAPI
+  transcript   String?
+  recordingUrl String?
+  vapiCallId   String? // VAPI call id — needed to re-fetch the recording via VAPI's API (recordingUrl alone stopped being directly fetchable after VAPI's July 2026 auth change)
+  callStatus   String?
+  answers      String? // raw JSON array from VAPI
 
-  reviewedAt    DateTime @default(now())
+  reviewedAt DateTime @default(now())
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Generic key/value cursor storage for n8n polling syncs (e.g. HR Alliance).
+// The backend doesn't interpret `value` — it's whatever string the caller uses
+// to resume an incremental pull (e.g. the newest appliedDate seen so far).
+model SyncCursor {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
 }

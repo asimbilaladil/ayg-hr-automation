@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import * as service from '../services/candidates.service';
 import {
   CreateCandidateSchema,
+  BulkImportCandidatesSchema,
   UpdateAIReviewSchema,
   UpdateCallResultSchema,
   UpdateCandidateSchema,
@@ -10,9 +11,9 @@ import {
 
 /**
  * Google Sheets stores formula-cell values with a leading "=" sign.
- * Strip it so the emailId lookup doesn't fail.
+ * Strip it so the externalId lookup doesn't fail.
  */
-function sanitizeEmailId(raw: string): string {
+function sanitizeExternalId(raw: string): string {
   return raw.startsWith('=') ? raw.slice(1) : raw;
 }
 
@@ -34,10 +35,10 @@ export async function getById(req: Request, res: Response, next: NextFunction) {
   } catch (err) { next(err); }
 }
 
-export async function getByEmailId(req: Request, res: Response, next: NextFunction) {
+export async function getByExternalId(req: Request, res: Response, next: NextFunction) {
   try {
-    const emailId = sanitizeEmailId(req.params.emailId);
-    const candidate = await service.getCandidateByEmailId(emailId);
+    const externalId = sanitizeExternalId(req.params.externalId);
+    const candidate = await service.getCandidateByExternalId(externalId);
     res.json(candidate);
   } catch (err) { next(err); }
 }
@@ -68,25 +69,33 @@ export async function create(req: Request, res: Response, next: NextFunction) {
   } catch (err) { next(err); }
 }
 
+export async function bulkImport(req: Request, res: Response, next: NextFunction) {
+  try {
+    const data = BulkImportCandidatesSchema.parse(req.body);
+    const results = await service.bulkImportCandidates(data.candidates);
+    res.status(200).json({ results });
+  } catch (err) { next(err); }
+}
+
 export async function updateAIReview(req: Request, res: Response, next: NextFunction) {
   try {
-    const emailId = sanitizeEmailId(req.params.emailId);
+    const externalId = sanitizeExternalId(req.params.externalId);
     const data = UpdateAIReviewSchema.parse(req.body);
-    const candidate = await service.updateAIReview(emailId, data);
+    const candidate = await service.updateAIReview(externalId, data);
     res.json(candidate);
   } catch (err) { next(err); }
 }
 
 export async function updateCallResult(req: Request, res: Response, next: NextFunction) {
   try {
-    const emailId = sanitizeEmailId(req.params.emailId);
+    const externalId = sanitizeExternalId(req.params.externalId);
     const data = UpdateCallResultSchema.parse(req.body);
-    const candidate = await service.updateCallResult(emailId, data);
+    const candidate = await service.updateCallResult(externalId, data);
     res.json(candidate);
   } catch (err) { next(err); }
 }
 
-// ID-based versions (use candidateId CUID instead of emailId)
+// ID-based versions (use candidateId CUID instead of externalId)
 export async function updateAIReviewById(req: Request, res: Response, next: NextFunction) {
   try {
     const data = UpdateAIReviewSchema.parse(req.body);
@@ -113,7 +122,7 @@ export async function update(req: Request, res: Response, next: NextFunction) {
 
 export async function remove(req: Request, res: Response, next: NextFunction) {
   try {
-    // Route param is :id — could be a CUID or an emailId; service handles both
+    // Route param is :id — could be a CUID or an externalId; service handles both
     const identifier = req.params.id;
     const result = await service.deleteCandidate(identifier);
     res.status(200).json(result);
@@ -135,10 +144,10 @@ export async function resetProblematic(req: Request, res: Response, next: NextFu
 
 export async function updateStatus(req: Request, res: Response, next: NextFunction) {
   try {
-    const emailId = sanitizeEmailId(req.params.emailId);
+    const externalId = sanitizeExternalId(req.params.externalId);
     const { status } = req.body;
 
-    const candidate = await service.updateCandidateStatus(emailId, {
+    const candidate = await service.updateCandidateStatus(externalId, {
       status,
     });
 
@@ -148,7 +157,7 @@ export async function updateStatus(req: Request, res: Response, next: NextFuncti
 
 export async function getResume(req: Request, res: Response, next: NextFunction) {
   try {
-    const { emailId } = req.params;
-    await service.getResume(emailId, res);
+    const { externalId } = req.params;
+    await service.getResume(externalId, res);
   } catch (err) { next(err); }
 }

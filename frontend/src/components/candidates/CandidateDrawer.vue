@@ -83,7 +83,7 @@
             <InfoField label="Position" :value="candidate?.postingName" />
             <InfoField label="Location" :value="candidate?.location" />
             <InfoField label="Phone" :value="candidate?.phone" />
-            <InfoField label="Email" :value="candidate?.emailId" />
+            <InfoField label="Application ID" :value="candidate?.externalId" />
             <InfoField label="Hiring Manager" :value="candidate?.hiringManager" />
             <InfoField label="Recruiter" :value="candidate?.recruiter" />
             <InfoField label="Date Applied" :value="candidate?.dateApplied" />
@@ -187,8 +187,8 @@
                 <input v-model="editForm.candidateName" class="input" />
               </div>
               <div>
-                <label class="label">Email</label>
-                <input v-model="editForm.emailId" class="input" type="email" disabled />
+                <label class="label">Application ID</label>
+                <input v-model="editForm.externalId" class="input" type="text" disabled />
               </div>
               <div>
                 <label class="label">Phone</label>
@@ -370,7 +370,7 @@ const STATUSES = ['pending', 'reviewing', 'reviewed', 'called', 'no-answer', 'in
 const editForm = reactive({
   candidateName: '',
   phone: '',
-  emailId: '',
+  externalId: '',
   postingName: '',
   location: '',
   hiringManager: '',
@@ -428,7 +428,7 @@ watch(() => props.candidate, async (c) => {
   Object.assign(editForm, {
     candidateName: c.candidateName || '',
     phone: c.phone || '',
-    emailId: c.emailId || '',
+    externalId: c.externalId || '',
     postingName: selectedPosting,
     location: c.location || '',
     hiringManager: selectedManager,
@@ -461,7 +461,7 @@ const parsedTranscript = computed(() => {
   }).filter(m => m.text)
 })
 
-const hasResume = computed(() => !!props.candidate?.emailId)
+const hasResume = computed(() => !!props.candidate?.externalId)
 
 const parsedInterviewAnswers = computed(() => {
   try {
@@ -477,11 +477,11 @@ const resumeLoading = ref(false)
 const resumeError = ref('')
 
 async function viewResume() {
-  if (!props.candidate?.emailId) return
+  if (!props.candidate?.externalId) return
   resumeLoading.value = true
   resumeError.value = ''
   try {
-    const res = await api.get(`/api/candidates/resume/${props.candidate.emailId}`, {
+    const res = await api.get(`/api/candidates/resume/${props.candidate.externalId}`, {
       responseType: 'blob',
     })
     const blob = new Blob([res.data], { type: 'application/pdf' })

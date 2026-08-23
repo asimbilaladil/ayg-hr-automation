@@ -363,7 +363,7 @@ The core table. Every job applicant is a row here.
 | `recruiter` | String? | Recruiter name |
 | `status` | String | See Candidate Status Lifecycle section |
 | `receivedAt` | DateTime? | When the application email was received |
-| `emailId` | String | **Unique** Gmail message ID — used as the stable identifier by n8n. This is how n8n looks up and updates a candidate without needing the DB id |
+| `externalId` | String | **Unique** external source ID — used as the stable identifier by n8n. This is how n8n looks up and updates a candidate without needing the DB id. Historically the Gmail message ID from the email-based pipeline; now the source-of-record ID from whatever system fed the candidate in (e.g. an HR Alliance applicant GUID) |
 | `aiScore` | Float? | 0–100 score from AI review |
 | `aiRecommendation` | String? | `HIRE`, `MAYBE`, or `REJECT` |
 | `aiCriteriaMet` | String? | Comma-separated list of criteria the candidate meets |
@@ -376,7 +376,7 @@ The core table. Every job applicant is a row here.
 | `createdAt` | DateTime | Auto-set |
 | `updatedAt` | DateTime | Auto-updated |
 
-Indexes on `status`, `location`, `postingName`, `emailId`, `deletedAt` for fast filtering.
+Indexes on `status`, `location`, `postingName`, `externalId`, `deletedAt` for fast filtering.
 
 ### `ManagerAvailability`
 
@@ -514,22 +514,36 @@ Body: {
   phone: "5551234567",
   dateApplied: "23 Feb 2026",
   hiringManager: "Emerson Medrano",
-  emailId: "19c8cd9c4505a04f",   ← Gmail message ID (unique per email)
+  externalId: "19c8cd9c4505a04f",   ← stable ID from the source system (unique per candidate)
   receivedAt: "2026-02-23T10:00:00Z"
 }
 ```
-Called when a new application email arrives in Gmail. The `emailId` is the Gmail message ID — it is used as the unique identifier for this candidate throughout the entire n8n workflow. If a duplicate `emailId` is sent, the API returns 409 Conflict (prevents duplicate records).
+The `externalId` is the unique identifier for this candidate throughout the entire n8n workflow — it's how n8n looks up and updates a candidate without needing the DB id. Under the original email-based pipeline this was the Gmail message ID; it's now the source-of-record ID from whatever system feeds candidates in (e.g. an HR Alliance applicant GUID). If a duplicate `externalId` is sent, the API returns 409 Conflict (prevents duplicate records) — for a polling-based source where the same candidate can legitimately reappear across runs, use `POST /api/candidates/bulk-import` instead (see below), which upserts rather than erroring.
 
-#### 2. Look up a candidate by Gmail emailId
+#### 1b. Bulk-import (upsert) candidates — for polling syncs
 ```
-GET /api/candidates/by-email/:emailId
+POST /api/candidates/bulk-import
+Header: X-API-Key: <key>
+Body: {
+  candidates: [
+    { postingName: "LCF Cashier", location: "LCF Airtex", candidateName: "John Smith", externalId: "abc123", ... },
+    ...
+  ]
+}
+Response: { results: [ { externalId: "abc123", ok: true, candidateId: "..." }, ... ] }
+```
+For sources polled repeatedly (e.g. HR Alliance) rather than triggered once per event. Upserts by `externalId`: existing candidates only get source-of-truth fields refreshed (name, phone, dateApplied, resumeUrl, posting, location, hiring manager) — AI-review/call/appointment state is never touched. One bad record in the array doesn't fail the rest.
+
+#### 2. Look up a candidate by externalId
+```
+GET /api/candidates/by-external-id/:externalId
 Header: X-API-Key: <key>
 ```
 Called after AI review or after a call, when n8n needs to confirm the candidate exists before updating it.
 
 #### 3. Post AI review results
 ```
-PATCH /api/candidates/:emailId/ai-review
+PATCH /api/candidates/:externalId/ai-review
 Header: X-API-Key: <key>
 Body: {
   aiScore: 80,
@@ -545,7 +559,7 @@ Called after the AI scoring node completes. Updates the candidate with AI analys
 
 #### 4. Post call transcript and outcome
 ```
-PATCH /api/candidates/:emailId/call-result
+PATCH /api/candidates/:externalId/call-result
 Header: X-API-Key: <key>
 Body: {
   transcript: "Full transcript text...",
@@ -554,6 +568,14 @@ Body: {
 }
 ```
 Called after Vapi completes an outbound AI phone call. Stores the full transcript and updates the candidate status.
+
+#### 4b. Read/advance a polling sync cursor
+```
+GET /api/sync-cursor/:key
+PUT /api/sync-cursor/:key   Body: { value: "..." }
+Header: X-API-Key: <key>
+```
+Generic key/value cursor storage for incremental polling syncs (e.g. `hralliance:applicants`). `GET` returns `{ key, value: null }` if never set — do a one-time full backfill in that case. `PUT` at the end of a successful run, set to the newest record marker (e.g. applied date) seen. The backend doesn't interpret `value` — all "what counts as new" logic lives in the caller's query.
 
 #### 5. Get available interview slots
 ```
@@ -610,11 +632,11 @@ The API was designed as a direct replacement. Here is the mapping:
 |---|---|
 | Append row to "Candidates" sheet | `POST /api/candidates` |
 | Read rows where status = pending | `GET /api/candidates?status=pending&limit=100` |
-| Update row with AI review | `PATCH /api/candidates/{emailId}/ai-review` |
+| Update row with AI review | `PATCH /api/candidates/{externalId}/ai-review` |
 | Read "Availability" sheet for location+day | `GET /api/availability/slots?location=X&dayOfWeek=Y&date=Z` |
 | Read "Appointments" sheet for conflicts | Built into the slots endpoint — conflicts are auto-subtracted |
 | Append row to "Appointments" sheet | `POST /api/appointments` |
-| Update row with transcript | `PATCH /api/candidates/{emailId}/call-result` |
+| Update row with transcript | `PATCH /api/candidates/{externalId}/call-result` |
 | Read all candidates | `GET /api/candidates?limit=9999` |
 | Reset problematic candidates | `POST /api/candidates/reset-problematic` |
 
@@ -911,11 +933,15 @@ pm2 restart hr-frontend
 | GET | `/api/candidates/:id` | JWT | HR+ | Get one candidate by DB id |
 | PATCH | `/api/candidates/:id` | JWT | HR+ | Manual edit (name, status, location, etc.) |
 | DELETE | `/api/candidates/:id` | JWT | ADMIN | Soft-delete (sets deletedAt) |
-| GET | `/api/candidates/by-email/:emailId` | API Key | n8n | Look up candidate by Gmail message ID |
-| POST | `/api/candidates` | API Key | n8n | Create new candidate from job application |
-| PATCH | `/api/candidates/:emailId/ai-review` | API Key | n8n | Post AI score + recommendation |
-| PATCH | `/api/candidates/:emailId/call-result` | API Key | n8n/Vapi | Post call transcript + outcome |
+| GET | `/api/candidates/by-external-id/:externalId` | API Key | n8n | Look up candidate by external source ID |
+| POST | `/api/candidates` | API Key | n8n | Create new candidate from job application (409 on duplicate externalId) |
+| POST | `/api/candidates/bulk-import` | API Key | n8n | Upsert a batch of candidates by externalId — for polling syncs (e.g. HR Alliance) |
+| PATCH | `/api/candidates/:externalId/ai-review` | API Key | n8n | Post AI score + recommendation |
+| PATCH | `/api/candidates/:externalId/call-result` | API Key | n8n/Vapi | Post call transcript + outcome |
 | POST | `/api/candidates/reset-problematic` | API Key | n8n | Reset stuck candidates back to pending |
+| GET | `/api/postings?isActive=true` | JWT/API Key | HR+/n8n | List postings, optionally filtered to only active ones |
+| GET | `/api/sync-cursor/:key` | API Key | n8n | Read a polling sync cursor (e.g. `hralliance:applicants`) |
+| PUT | `/api/sync-cursor/:key` | API Key | n8n | Advance a polling sync cursor |
 
 ---
 

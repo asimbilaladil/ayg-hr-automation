@@ -3,11 +3,13 @@ import * as service from '../services/postings.service';
 import {
   CreatePostingSchema,
   UpdatePostingSchema,
+  PostingQuerySchema,
 } from '../schemas/posting.schema';
 
 export async function list(req: Request, res: Response, next: NextFunction) {
   try {
-    const postings = await service.listPostings();
+    const query = PostingQuerySchema.parse(req.query);
+    const postings = await service.listPostings(query);
     res.json({ data: postings, total: postings.length });
   } catch (err) {
     next(err);
