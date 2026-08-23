@@ -263,14 +263,17 @@ Higher roles inherit all permissions from lower roles.
 |--------|----------|------|-------------|
 | GET | `/api/candidates` | JWT (HR+) | List candidates with filters & pagination |
 | GET | `/api/candidates/:id` | JWT (HR+) | Get candidate by database ID |
-| GET | `/api/candidates/by-email/:emailId` | API Key | Get candidate by Gmail emailId (n8n) |
+| GET | `/api/candidates/by-external-id/:externalId` | API Key | Get candidate by external source ID (n8n) |
 | POST | `/api/candidates` | API Key | Create new candidate (n8n) |
+| POST | `/api/candidates/bulk-import` | API Key | Upsert a batch of candidates by externalId — for polling syncs (n8n) |
 | PATCH | `/api/candidates/:id` | JWT (HR+) | Update candidate (manual edit) |
-| PATCH | `/api/candidates/:emailId/ai-review` | API Key | Update AI review results (n8n) |
-| PATCH | `/api/candidates/:emailId/call-result` | API Key | Update call transcript (n8n/Vapi) |
-| PATCH | `/api/candidates/:emailId/status` | API Key | Update candidate status (n8n) |
+| PATCH | `/api/candidates/:externalId/ai-review` | API Key | Update AI review results (n8n) |
+| PATCH | `/api/candidates/:externalId/call-result` | API Key | Update call transcript (n8n/Vapi) |
+| PATCH | `/api/candidates/:externalId/status` | API Key | Update candidate status (n8n) |
 | POST | `/api/candidates/reset-problematic` | API Key | Reset stuck candidates to pending (n8n) |
 | DELETE | `/api/candidates/:id` | JWT (ADMIN) | Soft-delete candidate |
+| GET | `/api/sync-cursor/:key` | API Key | Read a polling sync cursor (n8n) |
+| PUT | `/api/sync-cursor/:key` | API Key | Advance a polling sync cursor (n8n) |
 
 ### Appointments
 
@@ -345,14 +348,14 @@ Replace all Google Sheets nodes with HTTP Request nodes pointing to this API.
 |---|---|---|---|
 | Google Sheets — append candidate | API Request | POST | `/api/candidates` |
 | Google Sheets — read pending candidates | API Request | GET | `/api/candidates?status=pending&limit=100` |
-| Google Sheets — update AI review | API Request | PATCH | `/api/candidates/{emailId}/ai-review` |
+| Google Sheets — update AI review | API Request | PATCH | `/api/candidates/{externalId}/ai-review` |
 | Google Sheets — read availability | API Request | GET | `/api/availability?location=X&dayOfWeek=Y` |
 | Google Sheets — read booked slots | API Request | GET | `/api/appointments?location=X&date=YYYY-MM-DD` |
 | Google Sheets — write booking | API Request | POST | `/api/appointments` |
-| Google Sheets — update transcript | API Request | PATCH | `/api/candidates/{emailId}/call-result` |
+| Google Sheets — update transcript | API Request | PATCH | `/api/candidates/{externalId}/call-result` |
 | Google Sheets — read all candidates | API Request | GET | `/api/candidates?limit=9999` |
 | Google Sheets — reset problematic | API Request | POST | `/api/candidates/reset-problematic` |
-| Google Sheets — update status | API Request | PATCH | `/api/candidates/{emailId}/status` |
+| Google Sheets — update status | API Request | PATCH | `/api/candidates/{externalId}/status` |
 | Vapi — get free slots | API Request | GET | `/api/availability/slots?location=X&dayOfWeek=Y&date=YYYY-MM-DD` |
 | Vapi — get suggestions | API Request | GET | `/api/availability/suggestions?location=X` |
 | Vapi — validate slot | API Request | GET | `/api/availability/validate?location=X&date=Y&time=Z` |
@@ -371,7 +374,7 @@ Body: {
   "hiringManager": "Emerson Medrano",
   "recruiter": "Sarah Johnson",
   "status": "pending",
-  "emailId": "19c8cd9c4505a04f"
+  "externalId": "19c8cd9c4505a04f"
 }
 ```
 
@@ -588,9 +591,9 @@ Resume files stored at `/root/.n8n-files/resumes/` are **NOT** touched by this b
 
 The backend only stores the `resumeUrl` field pointing to these files.
 
-### 2. emailId Field
+### 2. externalId Field
 
-`emailId` is the unique Gmail message ID (e.g., `19c8cd9c4505a04f`). This is used as the primary identifier for n8n workflows.
+`externalId` is the unique external source ID (e.g., `19c8cd9c4505a04f`). Historically the Gmail message ID from the email-based pipeline; now the source-of-record ID from whatever system feeds candidates in (e.g. an HR Alliance applicant GUID). This is used as the primary identifier for n8n workflows.
 
 **Always** match/update candidates by this field when integrating with n8n, not by database ID.
 

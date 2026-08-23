@@ -61,7 +61,7 @@
   },
   "metadata": {
     "questionsAsked": "{{ $json.questionsForVapi }}",
-    "candidateEmail": "{{ $json.emailId }}",
+    "candidateEmail": "{{ $json.externalId }}",
     "candidateName": "{{ $json.candidateName }}",
     "jobRole": "{{ $json.postingName }}",
     "candidateId" "{{ $json.candidateId }}"

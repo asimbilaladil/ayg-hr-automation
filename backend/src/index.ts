@@ -18,6 +18,7 @@ import postingsRoutes from './routes/postings.routes';
 import notificationRoutes from './routes/notifications';
 import dashboardRoutes from './routes/dashboard.routes';
 import revelRoutes from './routes/revel.routes';
+import syncCursorRoutes from './routes/sync-cursor.routes';
 
 const app = express();
 
@@ -50,6 +51,7 @@ app.use('/api/postings', postingsRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/revel', revelRoutes);
+app.use('/api/sync-cursor', syncCursorRoutes);
 
 // ── 404 handler ──────────────────────────────────────────────────────────────
 app.use((_req, res) => res.status(404).json({ error: 'Route not found' }));

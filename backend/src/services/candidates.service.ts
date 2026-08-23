@@ -231,9 +231,9 @@ export async function getCandidateByPhone(phone: string) {
   return flattenCandidate(match);
 }
 
-export async function getCandidateByEmailId(emailId: string) {
+export async function getCandidateByExternalId(externalId: string) {
   const candidate = await prisma.candidate.findUnique({
-    where: { emailId },
+    where: { externalId },
     include: {
       posting_rel: true,
       location_rel: true,
@@ -261,7 +261,7 @@ export async function createCandidate(data: CreateCandidateInput) {
       phone: data.phone,
       dateApplied: data.dateApplied,
       status: data.status,
-      emailId: data.emailId,
+      externalId: data.externalId,
       resumeUrl: data.resumeUrl, // ✅ ADDED
       postingId,
       locationId,
@@ -277,6 +277,59 @@ export async function createCandidate(data: CreateCandidateInput) {
   });
 
   return flattenCandidate(candidate);
+}
+
+/**
+ * Upsert a batch of candidates by externalId — used by polling syncs (e.g. HR
+ * Alliance) where the same applicant reappears across runs. Existing
+ * candidates only get their source-of-truth fields refreshed; AI-review,
+ * call, and appointment state (owned by later pipeline stages) is never
+ * touched here. One bad record doesn't fail the whole batch.
+ */
+export async function bulkImportCandidates(items: CreateCandidateInput[]) {
+  const results: Array<{ externalId: string; ok: boolean; candidateId?: string; error?: string }> = [];
+
+  for (const data of items) {
+    try {
+      const postingId = await findOrCreatePosting(data.postingName);
+      const locationId = await findOrCreateLocation(data.location);
+      const existing = await prisma.candidate.findUnique({ where: { externalId: data.externalId } });
+
+      const hiringManagerId = data.hiringManager
+        ? await findOrCreateManager(data.hiringManager, [locationId])
+        : existing?.hiringManagerId ?? null;
+
+      const candidate = await prisma.candidate.upsert({
+        where: { externalId: data.externalId },
+        create: {
+          name: toTitleCase(data.candidateName),
+          phone: data.phone,
+          dateApplied: data.dateApplied,
+          status: data.status,
+          externalId: data.externalId,
+          resumeUrl: data.resumeUrl,
+          postingId,
+          locationId,
+          hiringManagerId,
+        },
+        update: {
+          name: toTitleCase(data.candidateName),
+          phone: data.phone,
+          dateApplied: data.dateApplied,
+          resumeUrl: data.resumeUrl,
+          postingId,
+          locationId,
+          hiringManagerId,
+        },
+      });
+
+      results.push({ externalId: data.externalId, ok: true, candidateId: candidate.id });
+    } catch (err: any) {
+      results.push({ externalId: data.externalId, ok: false, error: err.message || 'Unknown error' });
+    }
+  }
+
+  return results;
 }
 
 export async function updateCandidate(id: string, data: UpdateCandidateInput) {
@@ -319,9 +372,9 @@ export async function updateCandidate(id: string, data: UpdateCandidateInput) {
 }
 
 export async function deleteCandidate(id: string) {
-  // Support lookup by either CUID (id) or emailId
+  // Support lookup by either CUID (id) or externalId
   const candidate = await prisma.candidate.findFirst({
-    where: { OR: [{ id }, { emailId: id }] },
+    where: { OR: [{ id }, { externalId: id }] },
     include: { appointment: true },
   });
 
@@ -347,9 +400,9 @@ export async function deleteCandidate(id: string) {
   return { success: true, deleted: candidate.id };
 }
 
-export async function updateCandidateStatus(emailId: string, data: any) {
+export async function updateCandidateStatus(externalId: string, data: any) {
   const updated = await prisma.candidate.update({
-    where: { emailId },
+    where: { externalId },
     data: {
       status: data.status,
     },
@@ -364,13 +417,13 @@ export async function updateCandidateStatus(emailId: string, data: any) {
   return flattenCandidate(updated);
 }
 
-export async function getResume(emailId: string, res: any) {
+export async function getResume(externalId: string, res: any) {
   const fs = require('fs').promises;
   const fssync = require('fs');
   const path = require('path');
 
   // Find the candidate
-  const candidate = await prisma.candidate.findUnique({ where: { emailId } });
+  const candidate = await prisma.candidate.findUnique({ where: { externalId } });
   if (!candidate) {
     return res.status(404).json({ error: 'Candidate not found' });
   }
@@ -407,17 +460,17 @@ export async function getResume(emailId: string, res: any) {
   }
 
   // Strategy 2: constructed filename (original logic)
-  const constructedName = `${candidate.name.replace(/ /g, '_')}_${emailId}_Resume.pdf`;
+  const constructedName = `${candidate.name.replace(/ /g, '_')}_${externalId}_Resume.pdf`;
   const constructedPath = path.join(RESUMES_DIR, constructedName);
   try {
     await fs.access(constructedPath);
     return sendFile(constructedPath);
   } catch { /* fall through */ }
 
-  // Strategy 3: scan directory for any file that contains the emailId
+  // Strategy 3: scan directory for any file that contains the externalId
   try {
     const files = await fs.readdir(RESUMES_DIR);
-    const match = files.find((f: string) => f.includes(emailId));
+    const match = files.find((f: string) => f.includes(externalId));
     if (match) {
       return sendFile(path.join(RESUMES_DIR, match));
     }
@@ -425,13 +478,13 @@ export async function getResume(emailId: string, res: any) {
     console.error('Could not scan resumes directory:', err);
   }
 
-  console.error(`Resume not found for emailId=${emailId}. resumeUrl=${candidate.resumeUrl}`);
+  console.error(`Resume not found for externalId=${externalId}. resumeUrl=${candidate.resumeUrl}`);
   res.status(404).json({ error: 'Resume file not found' });
 }
 
-export async function updateAIReview(emailId: string, data: any) {
+export async function updateAIReview(externalId: string, data: any) {
   const updated = await prisma.candidate.update({
-    where: { emailId },
+    where: { externalId },
     data: {
       status:            data.status            || 'reviewed',
       ...(data.aiScore != null && data.aiScore > 0 && { aiScore: data.aiScore }),
@@ -464,9 +517,9 @@ function resolveCallStatus(raw?: string): string {
   return s;
 }
 
-export async function updateCallResult(emailId: string, data: any) {
+export async function updateCallResult(externalId: string, data: any) {
   // Do not overwrite status if candidate already has an interview booked
-  const existing = await prisma.candidate.findUnique({ where: { emailId } });
+  const existing = await prisma.candidate.findUnique({ where: { externalId } });
   if (!existing) throw new Error('NOT_FOUND');
 
   const resolvedStatus = resolveCallStatus(data.status);
@@ -479,7 +532,7 @@ export async function updateCallResult(emailId: string, data: any) {
       : undefined;
 
   const updated = await prisma.candidate.update({
-    where: { emailId },
+    where: { externalId },
     data: {
       ...(existing.status !== 'interview-booked' && { status: resolvedStatus }),
       ...(data.transcript        != null && { transcript:        data.transcript }),

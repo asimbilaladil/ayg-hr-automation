@@ -18,11 +18,11 @@ Internal HR Recruitment System — replaces Google Sheets + Excel workflows.
 |---|---|
 | Google Sheets append candidate | POST /api/candidates |
 | Google Sheets read pending | GET /api/candidates?status=pending&limit=100 |
-| Google Sheets update AI review | PATCH /api/candidates/{emailId}/ai-review |
+| Google Sheets update AI review | PATCH /api/candidates/{externalId}/ai-review |
 | Google Sheets read availability | GET /api/availability?location=X&dayOfWeek=Y |
 | Google Sheets read booked slots | GET /api/appointments?location=X&date=Y |
 | Google Sheets write booking | POST /api/appointments |
-| Google Sheets update transcript | PATCH /api/candidates/{emailId}/call-result |
+| Google Sheets update transcript | PATCH /api/candidates/{externalId}/call-result |
 | Google Sheets read all | GET /api/candidates?limit=9999 |
 | Google Sheets reset problematic | POST /api/candidates/reset-problematic |
     `,
@@ -64,7 +64,7 @@ Internal HR Recruitment System — replaces Google Sheets + Excel workflows.
             ],
           },
           receivedAt: { type: 'string', format: 'date-time', nullable: true },
-          emailId: { type: 'string' },
+          externalId: { type: 'string' },
           aiScore: { type: 'number', nullable: true },
           aiRecommendation: { type: 'string', enum: ['HIRE', 'MAYBE', 'REJECT'], nullable: true },
           aiCriteriaMet: { type: 'string', nullable: true },
@@ -206,7 +206,7 @@ Internal HR Recruitment System — replaces Google Sheets + Excel workflows.
             'application/json': {
               schema: {
                 type: 'object',
-                required: ['postingName', 'location', 'candidateName', 'emailId'],
+                required: ['postingName', 'location', 'candidateName', 'externalId'],
                 properties: {
                   postingName: { type: 'string', example: 'LCF Cashier' },
                   location: { type: 'string', example: 'LCF Airtex' },
@@ -217,7 +217,7 @@ Internal HR Recruitment System — replaces Google Sheets + Excel workflows.
                   recruiter: { type: 'string' },
                   status: { type: 'string', default: 'pending' },
                   receivedAt: { type: 'string', format: 'date-time' },
-                  emailId: { type: 'string', example: '19c8cd9c4505a04f' },
+                  externalId: { type: 'string', example: '19c8cd9c4505a04f' },
                 },
               },
             },
@@ -225,7 +225,7 @@ Internal HR Recruitment System — replaces Google Sheets + Excel workflows.
         },
         responses: {
           201: { description: 'Created candidate', content: { 'application/json': { schema: { $ref: '#/components/schemas/Candidate' } } } },
-          409: { description: 'emailId already exists' },
+          409: { description: 'externalId already exists' },
         },
       },
     },
@@ -262,21 +262,21 @@ Internal HR Recruitment System — replaces Google Sheets + Excel workflows.
         responses: { 200: { description: 'Candidate', content: { 'application/json': { schema: { $ref: '#/components/schemas/Candidate' } } } }, 404: { description: 'Not found' } },
       },
     },
-    '/candidates/by-email/{emailId}': {
+    '/candidates/by-external-id/{externalId}': {
       get: {
         tags: ['Candidates'],
-        summary: 'Get candidate by Gmail emailId (n8n)',
+        summary: 'Get candidate by externalId (n8n)',
         security: [{ ApiKeyAuth: [] }],
-        parameters: [{ name: 'emailId', in: 'path', required: true, schema: { type: 'string' }, example: '19c8cd9c4505a04f' }],
+        parameters: [{ name: 'externalId', in: 'path', required: true, schema: { type: 'string' }, example: '19c8cd9c4505a04f' }],
         responses: { 200: { description: 'Candidate' }, 404: { description: 'Not found' } },
       },
     },
-    '/candidates/{emailId}/ai-review': {
+    '/candidates/{externalId}/ai-review': {
       patch: {
         tags: ['Candidates'],
         summary: 'Update AI score/recommendation (n8n)',
         security: [{ ApiKeyAuth: [] }],
-        parameters: [{ name: 'emailId', in: 'path', required: true, schema: { type: 'string' } }],
+        parameters: [{ name: 'externalId', in: 'path', required: true, schema: { type: 'string' } }],
         requestBody: {
           required: true,
           content: {
@@ -301,12 +301,12 @@ Internal HR Recruitment System — replaces Google Sheets + Excel workflows.
         responses: { 200: { description: 'Updated candidate' } },
       },
     },
-    '/candidates/{emailId}/call-result': {
+    '/candidates/{externalId}/call-result': {
       patch: {
         tags: ['Candidates'],
         summary: 'Update call transcript and status (n8n / Vapi)',
         security: [{ ApiKeyAuth: [] }],
-        parameters: [{ name: 'emailId', in: 'path', required: true, schema: { type: 'string' } }],
+        parameters: [{ name: 'externalId', in: 'path', required: true, schema: { type: 'string' } }],
         requestBody: {
           required: true,
           content: {
@@ -339,6 +339,37 @@ Internal HR Recruitment System — replaces Google Sheets + Excel workflows.
         summary: 'Reset stuck candidates back to pending (n8n)',
         security: [{ ApiKeyAuth: [] }],
         responses: { 200: { description: 'Reset count', content: { 'application/json': { schema: { type: 'object', properties: { reset: { type: 'integer' } } } } } } },
+      },
+    },
+    '/candidates/bulk-import': {
+      post: {
+        tags: ['Candidates'],
+        summary: 'Upsert a batch of candidates by externalId (n8n — polling syncs e.g. HR Alliance)',
+        description: 'Unlike POST /candidates (create-only, 409 on duplicate externalId), this upserts: existing candidates get their source-of-truth fields refreshed (name, phone, dateApplied, resumeUrl, postingName, location, hiringManager) — AI-review/call/appointment state is never touched. One bad record does not fail the whole batch.',
+        security: [{ ApiKeyAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['candidates'],
+                properties: {
+                  candidates: {
+                    type: 'array',
+                    items: { type: 'object', required: ['postingName', 'location', 'candidateName', 'externalId'] },
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: 'Per-item results',
+            content: { 'application/json': { schema: { type: 'object', properties: { results: { type: 'array', items: { type: 'object', properties: { externalId: { type: 'string' }, ok: { type: 'boolean' }, candidateId: { type: 'string' }, error: { type: 'string' } } } } } } } },
+          },
+        },
       },
     },
     '/appointments': {
@@ -749,6 +780,28 @@ Internal HR Recruitment System — replaces Google Sheets + Excel workflows.
         security: [{ BearerAuth: [] }],
         parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
         responses: { 200: { description: 'Marked read' } },
+      },
+    },
+    '/sync-cursor/{key}': {
+      get: {
+        tags: ['Sync Cursor'],
+        summary: 'Read a polling sync cursor (n8n)',
+        description: 'Generic key/value cursor storage for n8n polling syncs (e.g. HR Alliance). Returns value: null if never set — caller should do a one-time full backfill in that case.',
+        security: [{ ApiKeyAuth: [] }],
+        parameters: [{ name: 'key', in: 'path', required: true, schema: { type: 'string' }, example: 'hralliance:applicants' }],
+        responses: { 200: { description: 'Cursor value', content: { 'application/json': { schema: { type: 'object', properties: { key: { type: 'string' }, value: { type: 'string', nullable: true } } } } } } },
+      },
+      put: {
+        tags: ['Sync Cursor'],
+        summary: 'Advance a polling sync cursor (n8n)',
+        description: 'Call at the end of a successful sync run, set to the newest record marker (e.g. appliedDate) seen. The backend does not interpret the value.',
+        security: [{ ApiKeyAuth: [] }],
+        parameters: [{ name: 'key', in: 'path', required: true, schema: { type: 'string' }, example: 'hralliance:applicants' }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { type: 'object', required: ['value'], properties: { value: { type: 'string' } } } } },
+        },
+        responses: { 200: { description: 'Updated cursor' } },
       },
     },
   },

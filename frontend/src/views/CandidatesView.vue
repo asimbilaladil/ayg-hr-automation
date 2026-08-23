@@ -140,7 +140,7 @@
               <td class="px-4 py-3"><StatusBadge v-if="c.aiRecommendation" :status="c.aiRecommendation" /></td>
               <td class="px-4 py-3">
                 <button
-                  v-if="c.emailId"
+                  v-if="c.externalId"
                   class="inline-flex items-center gap-1 px-3 py-1 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors disabled:opacity-50"
                   :disabled="resumeLoadingId === c.id"
                   @click="viewResume(c, $event)"
@@ -313,10 +313,10 @@ const resumeLoadingId = ref(null)
 
 async function viewResume(candidate, event) {
   event.stopPropagation()
-  if (!candidate?.emailId) return
+  if (!candidate?.externalId) return
   resumeLoadingId.value = candidate.id
   try {
-    const res = await api.get(`/api/candidates/resume/${candidate.emailId}`, {
+    const res = await api.get(`/api/candidates/resume/${candidate.externalId}`, {
       responseType: 'blob',
     })
     const blob = new Blob([res.data], { type: 'application/pdf' })
