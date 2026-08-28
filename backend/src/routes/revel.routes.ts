@@ -13,6 +13,8 @@ router.use(auth);
 // GET  /api/revel/employees  — list all synced 30-day employees
 //   filters: ?establishmentId= &isActive=true|false &phone= &called=true|false
 //            &callStatus=NOT_CALLED|SUCCESS|NO_ANSWER|VOICEMAIL|FAILED (comma-separated ok)
+//            &hiredDaysAgo=30  → only employees whose start date is >= 30 days ago
+//            &limit=50         → cap the number of rows returned
 //   called=false      → employees the system has not marked as called
 //   callStatus=SUCCESS → employees who answered the review questions on the call
 //   each returned employee also carries a derived `callStatus` field

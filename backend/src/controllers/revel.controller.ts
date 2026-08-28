@@ -446,7 +446,18 @@ export function deriveCallOutcome(employee: { called?: boolean; review?: any }):
 
 export async function listEmployees(req: Request, res: Response, next: NextFunction) {
   try {
-    const { establishmentId, isActive, phone, called, callStatus } = req.query;
+    const { establishmentId, isActive, phone, called, callStatus, hiredDaysAgo, limit } = req.query;
+
+    // ?hiredDaysAgo=30 → only employees whose start date is at least 30 days ago
+    let hiredBefore: Date | undefined;
+    if (hiredDaysAgo !== undefined && !Number.isNaN(Number(hiredDaysAgo))) {
+      hiredBefore = new Date();
+      hiredBefore.setDate(hiredBefore.getDate() - Number(hiredDaysAgo));
+    }
+
+    const take = limit !== undefined && Number.isInteger(Number(limit)) && Number(limit) > 0
+      ? Number(limit)
+      : undefined;
 
     const employees = await prisma.aygFoodsEmployee.findMany({
       where: {
@@ -454,7 +465,11 @@ export async function listEmployees(req: Request, res: Response, next: NextFunct
         ...(isActive !== undefined ? { isActive: isActive === 'true' } : {}),
         ...(phone ? { phone: { contains: String(phone) } } : {}),
         ...(called !== undefined ? { called: called === 'true' } : {}),
+        ...(hiredBefore ? { employeeStart: { lte: hiredBefore } } : {}),
       },
+      // when filtering by the derived callStatus we must post-filter in memory,
+      // so the DB-level take can only be applied when that filter is absent
+      ...(take !== undefined && callStatus === undefined ? { take } : {}),
       include: {
         location: {
           select: {
@@ -473,6 +488,11 @@ export async function listEmployees(req: Request, res: Response, next: NextFunct
     if (callStatus !== undefined) {
       const wanted = String(callStatus).toUpperCase().split(',').map(s => s.trim()).filter(Boolean);
       withOutcome = withOutcome.filter(e => wanted.includes(e.callStatus));
+    }
+
+    // apply limit in memory when it couldn't be pushed to the DB query
+    if (take !== undefined && callStatus !== undefined) {
+      withOutcome = withOutcome.slice(0, take);
     }
 
     res.json({ total: withOutcome.length, employees: withOutcome });
