@@ -18,6 +18,9 @@ router.use(auth);
 //            &nextCallAtBefore=<ISO> → only employees callable now (no cooldown, or expired)
 //   called=false      → employees the system has not marked as called
 //   callStatus=SUCCESS → employees who answered the review questions on the call
+//   n8n (x-api-key auth) automatically excludes employees still in a voicemail
+//   cooldown — no query param needed; pass &includeCooldown=true to see them.
+//   JWT/UI callers always see everyone.
 //   each returned employee also carries derived `callStatus` and
 //   `daysSinceStart` (whole days since employeeStart) fields
 router.get('/employees', listEmployees);

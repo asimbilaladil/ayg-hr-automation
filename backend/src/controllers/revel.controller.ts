@@ -502,7 +502,7 @@ export function daysSinceStart(employeeStart?: Date | string | null): number | n
 
 export async function listEmployees(req: Request, res: Response, next: NextFunction) {
   try {
-    const { establishmentId, isActive, phone, called, callStatus, hiredDaysAgo, limit, nextCallAtBefore } = req.query;
+    const { establishmentId, isActive, phone, called, callStatus, hiredDaysAgo, limit, nextCallAtBefore, includeCooldown } = req.query;
 
     // ?hiredDaysAgo=30 → only employees whose start date is at least 30 days ago
     let hiredBefore: Date | undefined;
@@ -515,12 +515,19 @@ export async function listEmployees(req: Request, res: Response, next: NextFunct
       ? Number(limit)
       : undefined;
 
-    // ?nextCallAtBefore=<ISO> → only employees callable now: no cooldown, or an
-    // expired one. Used by the n8n workflow to skip voicemail cooldowns.
-    const cooldownCutoff =
-      nextCallAtBefore !== undefined && !Number.isNaN(Date.parse(String(nextCallAtBefore)))
-        ? new Date(String(nextCallAtBefore))
-        : undefined;
+    // Voicemail cooldown handling:
+    //  - an explicit ?nextCallAtBefore=<ISO> filters to that cutoff for anyone;
+    //  - otherwise n8n (API-key auth) automatically only sees employees callable
+    //    *now* — those still in cooldown are hidden without any query param, so
+    //    the workflow never re-dials them. Pass ?includeCooldown=true to opt out.
+    //  - JWT/UI callers are unaffected: they see everyone (the Onboarding page
+    //    still shows employees sitting in a voicemail cooldown).
+    let cooldownCutoff: Date | undefined;
+    if (nextCallAtBefore !== undefined && !Number.isNaN(Date.parse(String(nextCallAtBefore)))) {
+      cooldownCutoff = new Date(String(nextCallAtBefore));
+    } else if (req.isN8N && includeCooldown !== 'true') {
+      cooldownCutoff = new Date();
+    }
 
     const employees = await prisma.aygFoodsEmployee.findMany({
       where: {
