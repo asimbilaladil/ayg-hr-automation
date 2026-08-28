@@ -98,7 +98,10 @@ const VOICEMAIL_RE = /voicemail|machine|beep/i;
  */
 function parseClientDate(value: unknown, field: string): Date | null {
   if (value === null || value === undefined || value === '') return null;
-  const d = new Date(value as string);
+  // n8n leaks a leading "=" from expression-mode fields; tolerate it.
+  const raw = typeof value === 'string' ? value.replace(/^=/, '').trim() : value;
+  if (raw === '') return null;
+  const d = new Date(raw as string);
   if (Number.isNaN(d.getTime())) {
     const e: any = new Error(`Invalid date for "${field}": ${JSON.stringify(value)}`);
     e.status = 400;
