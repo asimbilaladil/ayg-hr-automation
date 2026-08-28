@@ -30,6 +30,10 @@ export function errorHandler(
   }
 
   if (err instanceof Error) {
+    const status = (err as any).status;
+    if (typeof status === 'number' && status >= 400 && status < 500) {
+      return res.status(status).json({ error: err.message });
+    }
     if (err.message === 'NOT_FOUND') {
       return res.status(404).json({ error: 'Not found' });
     }

@@ -91,6 +91,22 @@ export async function markCalled(req: Request, res: Response, next: NextFunction
 
 const VOICEMAIL_RE = /voicemail|machine|beep/i;
 
+/**
+ * Parses a client-supplied date. Falsy → null. An unparseable string raises a
+ * 400 instead of letting `new Date("bad")` reach Prisma as an Invalid Date
+ * (which surfaces as an opaque 500).
+ */
+function parseClientDate(value: unknown, field: string): Date | null {
+  if (value === null || value === undefined || value === '') return null;
+  const d = new Date(value as string);
+  if (Number.isNaN(d.getTime())) {
+    const e: any = new Error(`Invalid date for "${field}": ${JSON.stringify(value)}`);
+    e.status = 400;
+    throw e;
+  }
+  return d;
+}
+
 export async function updateEmployee(req: Request, res: Response, next: NextFunction) {
   try {
     const { id } = req.params;
@@ -113,7 +129,7 @@ export async function updateEmployee(req: Request, res: Response, next: NextFunc
     // otherwise auto-set a 1-hour cooldown when the call hit voicemail.
     let cooldown: Date | null | undefined;
     if (nextCallAt !== undefined) {
-      cooldown = nextCallAt ? new Date(nextCallAt) : null;
+      cooldown = parseClientDate(nextCallAt, 'nextCallAt');
     } else if (isVoicemail) {
       cooldown = new Date(Date.now() + 60 * 60 * 1000);
     }
@@ -126,7 +142,7 @@ export async function updateEmployee(req: Request, res: Response, next: NextFunc
     const data = {
       ...(called !== undefined && { called }),
       ...(calledAt !== undefined
-        ? { calledAt: calledAt ? new Date(calledAt) : null }
+        ? { calledAt: parseClientDate(calledAt, 'calledAt') }
         : {
             ...(called === true  && { calledAt: new Date() }),
             ...(called === false && { calledAt: null }),
@@ -134,7 +150,7 @@ export async function updateEmployee(req: Request, res: Response, next: NextFunc
       ...(cooldown !== undefined && { nextCallAt: cooldown }),
       ...(endedReason !== undefined && { endedReason }),
       ...(lastCallAt !== undefined
-        ? { lastCallAt: lastCallAt ? new Date(lastCallAt) : null }
+        ? { lastCallAt: parseClientDate(lastCallAt, 'lastCallAt') }
         : (isCallAttempt ? { lastCallAt: new Date() } : {})),
     };
 
@@ -167,7 +183,7 @@ export async function updateEmployee(req: Request, res: Response, next: NextFunc
         durationSec: durationSec ?? null,
         recordingUrl: recordingUrl ?? null,
         notes: notes ?? null,
-        attemptedAt: calledAt ? new Date(calledAt) : new Date(),
+        attemptedAt: parseClientDate(calledAt, 'calledAt') ?? new Date(),
       });
     }
 
@@ -214,12 +230,12 @@ export async function postCallLog(req: Request, res: Response, next: NextFunctio
     }
 
     const resolvedOutcome = (outcome && outcome.toUpperCase()) || normalizeOutcome(endedReason ?? status) || 'ATTEMPTED';
-    const at = attemptedAt ? new Date(attemptedAt) : new Date();
+    const at = parseClientDate(attemptedAt, 'attemptedAt') ?? new Date();
     const isVoicemail = resolvedOutcome === 'VOICEMAIL';
 
     // cooldown: explicit nextCallAt wins; else 1h on voicemail
     let cooldown: Date | null | undefined;
-    if (nextCallAt !== undefined) cooldown = nextCallAt ? new Date(nextCallAt) : null;
+    if (nextCallAt !== undefined) cooldown = parseClientDate(nextCallAt, 'nextCallAt');
     else if (isVoicemail) cooldown = new Date(Date.now() + 60 * 60 * 1000);
 
     await logCallAttempt(id, {
