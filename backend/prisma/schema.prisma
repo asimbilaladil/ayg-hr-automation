@@ -181,6 +181,11 @@ model AygFoodsEmployee {
   calledAt DateTime?
   isTest   Boolean   @default(false)
 
+  // Outbound call state (mirrors Candidate) — driven by the n8n / VAPI workflow
+  endedReason String?   // VAPI ended-reason: voicemail, machine_end_beep, hangup, silence-timed-out, ...
+  nextCallAt  DateTime? // cooldown expiry; NULL = callable now; auto-set to now+1h on voicemail
+  lastCallAt  DateTime? // timestamp of the most recent call attempt
+
   review OnboardingReview?
 
   syncedAt  DateTime @default(now())

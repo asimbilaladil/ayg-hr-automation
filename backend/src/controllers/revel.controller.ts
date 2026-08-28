@@ -36,18 +36,54 @@ export async function markCalled(req: Request, res: Response, next: NextFunction
   }
 }
 
+const VOICEMAIL_RE = /voicemail|machine|beep/i;
+
 export async function updateEmployee(req: Request, res: Response, next: NextFunction) {
   try {
     const { id } = req.params;
-    const { called, calledAt } = req.body as { called?: boolean; calledAt?: string };
+    const { called, calledAt, nextCallAt, lastCallAt, endedReason, status } = req.body as {
+      called?: boolean;
+      calledAt?: string | null;
+      nextCallAt?: string | null;
+      lastCallAt?: string | null;
+      endedReason?: string;
+      status?: string;
+    };
+
+    const isVoicemail = VOICEMAIL_RE.test(endedReason ?? '') || /voicemail/i.test(status ?? '');
+
+    // Cooldown: honour an explicit nextCallAt (or explicit null to clear it);
+    // otherwise auto-set a 1-hour cooldown when the call hit voicemail.
+    let cooldown: Date | null | undefined;
+    if (nextCallAt !== undefined) {
+      cooldown = nextCallAt ? new Date(nextCallAt) : null;
+    } else if (isVoicemail) {
+      cooldown = new Date(Date.now() + 60 * 60 * 1000);
+    }
+
+    // Did this request describe a call attempt? (used to stamp lastCallAt)
+    const isCallAttempt =
+      calledAt !== undefined || lastCallAt !== undefined ||
+      endedReason !== undefined || status !== undefined || isVoicemail;
+
+    const data = {
+      ...(called !== undefined && { called }),
+      ...(calledAt !== undefined
+        ? { calledAt: calledAt ? new Date(calledAt) : null }
+        : {
+            ...(called === true  && { calledAt: new Date() }),
+            ...(called === false && { calledAt: null }),
+          }),
+      ...(cooldown !== undefined && { nextCallAt: cooldown }),
+      ...(endedReason !== undefined && { endedReason }),
+      ...(lastCallAt !== undefined
+        ? { lastCallAt: lastCallAt ? new Date(lastCallAt) : null }
+        : (isCallAttempt ? { lastCallAt: new Date() } : {})),
+    };
 
     const employee = await prisma.aygFoodsEmployee.update({
       where: { id },
-      data: {
-        ...(called !== undefined && { called }),
-        ...(called === true  && { calledAt: calledAt ? new Date(calledAt) : new Date() }),
-        ...(called === false && { calledAt: null }),
-      },
+      data,
       include: {
         location: {
           select: {
@@ -59,7 +95,11 @@ export async function updateEmployee(req: Request, res: Response, next: NextFunc
       },
     });
 
-    res.json(employee);
+    res.json({
+      ...employee,
+      callStatus: deriveCallOutcome(employee),
+      daysSinceStart: daysSinceStart(employee.employeeStart),
+    });
   } catch (err) {
     next(err);
   }
@@ -427,20 +467,28 @@ function reviewHasAnswers(review: any): boolean {
   return false;
 }
 
-export function deriveCallOutcome(employee: { called?: boolean; review?: any }): CallOutcome {
+export function deriveCallOutcome(
+  employee: { called?: boolean; review?: any; endedReason?: string | null; nextCallAt?: Date | string | null; lastCallAt?: Date | string | null },
+): CallOutcome {
   const review = employee.review;
 
   if (reviewHasAnswers(review)) return 'SUCCESS';
 
-  const raw = (review?.callStatus ?? '').toString().toLowerCase();
+  // employee.endedReason (set by the n8n workflow) takes precedence over the
+  // review's raw callStatus string.
+  const raw = (employee.endedReason ?? review?.callStatus ?? '').toString().toLowerCase();
   if (raw) {
     if (/voicemail|machine|beep/.test(raw)) return 'VOICEMAIL';
-    if (/no-?\s?answer|silence|timed?-?\s?out|did-?not-?answer|didn'?t-?answer|unanswered|not-?answered/.test(raw)) return 'NO_ANSWER';
+    if (/no-?\s?answer|silence|timed?-?\s?out|did-?not-?answer|didn'?t-?answer|unanswered|not-?answered|no-?input|customer-did-not/.test(raw)) return 'NO_ANSWER';
     return 'FAILED'; // call attempted (status present) but no answers captured
   }
 
-  if (review) return 'FAILED';          // review row exists but empty & no status
-  if (employee.called) return 'SUCCESS'; // manually marked called, no review row
+  // a cooldown timestamp is only ever set after a call hit voicemail
+  if (employee.nextCallAt) return 'VOICEMAIL';
+
+  if (review) return 'FAILED';           // review row exists but empty & no status
+  if (employee.called) return 'SUCCESS';  // manually marked called, no review row
+  if (employee.lastCallAt) return 'FAILED'; // we dialled but nothing came of it
   return 'NOT_CALLED';
 }
 
@@ -454,7 +502,7 @@ export function daysSinceStart(employeeStart?: Date | string | null): number | n
 
 export async function listEmployees(req: Request, res: Response, next: NextFunction) {
   try {
-    const { establishmentId, isActive, phone, called, callStatus, hiredDaysAgo, limit } = req.query;
+    const { establishmentId, isActive, phone, called, callStatus, hiredDaysAgo, limit, nextCallAtBefore } = req.query;
 
     // ?hiredDaysAgo=30 → only employees whose start date is at least 30 days ago
     let hiredBefore: Date | undefined;
@@ -467,6 +515,13 @@ export async function listEmployees(req: Request, res: Response, next: NextFunct
       ? Number(limit)
       : undefined;
 
+    // ?nextCallAtBefore=<ISO> → only employees callable now: no cooldown, or an
+    // expired one. Used by the n8n workflow to skip voicemail cooldowns.
+    const cooldownCutoff =
+      nextCallAtBefore !== undefined && !Number.isNaN(Date.parse(String(nextCallAtBefore)))
+        ? new Date(String(nextCallAtBefore))
+        : undefined;
+
     const employees = await prisma.aygFoodsEmployee.findMany({
       where: {
         ...(establishmentId ? { establishmentId: Number(establishmentId) } : {}),
@@ -474,6 +529,9 @@ export async function listEmployees(req: Request, res: Response, next: NextFunct
         ...(phone ? { phone: { contains: String(phone) } } : {}),
         ...(called !== undefined ? { called: called === 'true' } : {}),
         ...(hiredBefore ? { employeeStart: { lte: hiredBefore } } : {}),
+        ...(cooldownCutoff
+          ? { OR: [{ nextCallAt: null }, { nextCallAt: { lte: cooldownCutoff } }] }
+          : {}),
       },
       // when filtering by the derived callStatus we must post-filter in memory,
       // so the DB-level take can only be applied when that filter is absent

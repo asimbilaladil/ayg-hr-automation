@@ -13,8 +13,9 @@ router.use(auth);
 // GET  /api/revel/employees  — list all synced 30-day employees
 //   filters: ?establishmentId= &isActive=true|false &phone= &called=true|false
 //            &callStatus=NOT_CALLED|SUCCESS|NO_ANSWER|VOICEMAIL|FAILED (comma-separated ok)
-//            &hiredDaysAgo=30  → only employees whose start date is >= 30 days ago
-//            &limit=50         → cap the number of rows returned
+//            &hiredDaysAgo=30       → only employees whose start date is >= 30 days ago
+//            &limit=50              → cap the number of rows returned
+//            &nextCallAtBefore=<ISO> → only employees callable now (no cooldown, or expired)
 //   called=false      → employees the system has not marked as called
 //   callStatus=SUCCESS → employees who answered the review questions on the call
 //   each returned employee also carries derived `callStatus` and
@@ -24,8 +25,12 @@ router.get('/employees', listEmployees);
 // POST /api/revel/sync                — manually trigger a sync (admin only)
 router.post('/sync', rbac('ADMIN'), triggerSync);
 
-// PATCH /api/revel/employees/:id              — update employee (called, calledAt)
+// PATCH /api/revel/employees/:id              — update employee call state
+//   body: { called?, calledAt?, nextCallAt?, lastCallAt?, endedReason?, status? }
+//   endedReason/status containing "voicemail" auto-sets a 1-hour nextCallAt cooldown
 router.patch('/employees/:id', updateEmployee);
+// alias: some n8n nodes call the singular path — keep both working
+router.patch('/employee/:id', updateEmployee);
 
 // PATCH /api/revel/employees/:id/called       — mark employee as called / not called
 router.patch('/employees/:id/called', markCalled);
