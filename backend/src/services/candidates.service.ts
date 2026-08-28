@@ -15,7 +15,7 @@ function toTitleCase(name: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-async function findOrCreateLocation(locationName: string): Promise<string> {
+async function findOrCreateLocation(locationName: string): Promise<{ id: string; managerId: string | null }> {
   const trimmedName = locationName.trim();
 
   let location = await prisma.location.findFirst({
@@ -30,7 +30,7 @@ async function findOrCreateLocation(locationName: string): Promise<string> {
     });
   }
 
-  return location.id;
+  return { id: location.id, managerId: location.managerId };
 }
 
 async function findOrCreateManager(managerName: string, locationIds?: string[]): Promise<string | null> {
@@ -249,11 +249,13 @@ export async function getCandidateByExternalId(externalId: string) {
 
 export async function createCandidate(data: CreateCandidateInput) {
   const postingId = await findOrCreatePosting(data.postingName);
-  const locationId = await findOrCreateLocation(data.location);
-  // Pass locationId so new managers are auto-assigned to this location
+  const { id: locationId, managerId: locationManagerId } = await findOrCreateLocation(data.location);
+  // Pass locationId so new managers are auto-assigned to this location.
+  // With no explicit hiring manager (e.g. HR Alliance sync), fall back to the
+  // manager already assigned to the candidate's location.
   const hiringManagerId = data.hiringManager
     ? await findOrCreateManager(data.hiringManager, [locationId])
-    : null;
+    : locationManagerId;
 
   const candidate = await prisma.candidate.create({
     data: {
@@ -292,12 +294,12 @@ export async function bulkImportCandidates(items: CreateCandidateInput[]) {
   for (const data of items) {
     try {
       const postingId = await findOrCreatePosting(data.postingName);
-      const locationId = await findOrCreateLocation(data.location);
+      const { id: locationId, managerId: locationManagerId } = await findOrCreateLocation(data.location);
       const existing = await prisma.candidate.findUnique({ where: { externalId: data.externalId } });
 
       const hiringManagerId = data.hiringManager
         ? await findOrCreateManager(data.hiringManager, [locationId])
-        : existing?.hiringManagerId ?? null;
+        : existing?.hiringManagerId ?? locationManagerId;
 
       const candidate = await prisma.candidate.upsert({
         where: { externalId: data.externalId },
@@ -349,7 +351,7 @@ export async function updateCandidate(id: string, data: UpdateCandidateInput) {
   }
 
   if (data.location) {
-    updateData.locationId = await findOrCreateLocation(data.location);
+    updateData.locationId = (await findOrCreateLocation(data.location)).id;
   }
 
   if (data.hiringManager) {
