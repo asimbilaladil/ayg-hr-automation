@@ -402,15 +402,58 @@ export async function resetTestRecord(req: Request, res: Response, next: NextFun
   }
 }
 
+// Derived call outcome for a synced employee. There is no dedicated column —
+// it is computed from the linked OnboardingReview (and the `called` flag) so the
+// n8n / VAPI workflow doesn't have to send a normalised status.
+export type CallOutcome = 'NOT_CALLED' | 'SUCCESS' | 'NO_ANSWER' | 'VOICEMAIL' | 'FAILED';
+
+// A call counts as SUCCESS only when the employee actually answered our questions,
+// i.e. the review carries real content (question notes, overall notes, parsed
+// answers, or a transcript with the employee speaking).
+function reviewHasAnswers(review: any): boolean {
+  if (!review) return false;
+  const notes = [
+    review.q1Notes, review.q2Notes, review.q3Notes, review.q4Notes,
+    review.q5Notes, review.q6Notes, review.q7Notes, review.overallNotes,
+  ];
+  if (notes.some(n => typeof n === 'string' && n.trim())) return true;
+  if (typeof review.answers === 'string' && review.answers.trim()) {
+    try {
+      const arr = JSON.parse(review.answers);
+      if (Array.isArray(arr) && arr.some(a => a?.answer && String(a.answer).trim())) return true;
+    } catch { /* not JSON — ignore */ }
+  }
+  if (typeof review.transcript === 'string' && /(^|\n)\s*User:\s*\S/.test(review.transcript)) return true;
+  return false;
+}
+
+export function deriveCallOutcome(employee: { called?: boolean; review?: any }): CallOutcome {
+  const review = employee.review;
+
+  if (reviewHasAnswers(review)) return 'SUCCESS';
+
+  const raw = (review?.callStatus ?? '').toString().toLowerCase();
+  if (raw) {
+    if (/voicemail|machine|beep/.test(raw)) return 'VOICEMAIL';
+    if (/no-?\s?answer|silence|timed?-?\s?out|did-?not-?answer|didn'?t-?answer|unanswered|not-?answered/.test(raw)) return 'NO_ANSWER';
+    return 'FAILED'; // call attempted (status present) but no answers captured
+  }
+
+  if (review) return 'FAILED';          // review row exists but empty & no status
+  if (employee.called) return 'SUCCESS'; // manually marked called, no review row
+  return 'NOT_CALLED';
+}
+
 export async function listEmployees(req: Request, res: Response, next: NextFunction) {
   try {
-    const { establishmentId, isActive, phone } = req.query;
+    const { establishmentId, isActive, phone, called, callStatus } = req.query;
 
     const employees = await prisma.aygFoodsEmployee.findMany({
       where: {
         ...(establishmentId ? { establishmentId: Number(establishmentId) } : {}),
         ...(isActive !== undefined ? { isActive: isActive === 'true' } : {}),
         ...(phone ? { phone: { contains: String(phone) } } : {}),
+        ...(called !== undefined ? { called: called === 'true' } : {}),
       },
       include: {
         location: {
@@ -424,7 +467,15 @@ export async function listEmployees(req: Request, res: Response, next: NextFunct
       orderBy: [{ establishmentId: 'asc' }, { lastName: 'asc' }],
     });
 
-    res.json({ total: employees.length, employees });
+    let withOutcome = employees.map(e => ({ ...e, callStatus: deriveCallOutcome(e) }));
+
+    // ?callStatus=SUCCESS|NO_ANSWER|VOICEMAIL|FAILED|NOT_CALLED (comma-separated ok)
+    if (callStatus !== undefined) {
+      const wanted = String(callStatus).toUpperCase().split(',').map(s => s.trim()).filter(Boolean);
+      withOutcome = withOutcome.filter(e => wanted.includes(e.callStatus));
+    }
+
+    res.json({ total: withOutcome.length, employees: withOutcome });
   } catch (err) {
     next(err);
   }
@@ -457,7 +508,9 @@ export async function getCandidateByPhone(req: Request, res: Response, next: Nex
       return;
     }
 
-    res.json({ found: true, total: matches.length, employees: matches });
+    const withOutcome = matches.map(m => ({ ...m, callStatus: deriveCallOutcome(m) }));
+
+    res.json({ found: true, total: withOutcome.length, employees: withOutcome });
   } catch (err) {
     next(err);
   }

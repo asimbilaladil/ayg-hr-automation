@@ -11,6 +11,11 @@ router.get('/candidates/by-phone/:phone', apiKeyAuth, getCandidateByPhone);
 router.use(auth);
 
 // GET  /api/revel/employees  — list all synced 30-day employees
+//   filters: ?establishmentId= &isActive=true|false &phone= &called=true|false
+//            &callStatus=NOT_CALLED|SUCCESS|NO_ANSWER|VOICEMAIL|FAILED (comma-separated ok)
+//   called=false      → employees the system has not marked as called
+//   callStatus=SUCCESS → employees who answered the review questions on the call
+//   each returned employee also carries a derived `callStatus` field
 router.get('/employees', listEmployees);
 
 // POST /api/revel/sync                — manually trigger a sync (admin only)
