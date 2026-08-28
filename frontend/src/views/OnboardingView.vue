@@ -9,6 +9,13 @@
         </p>
       </div>
       <div class="flex items-center gap-3">
+        <select
+          v-model="locationFilter"
+          class="text-xs font-medium border border-gray-200 rounded-lg px-2.5 py-2 bg-white text-gray-700 focus:ring-1 focus:ring-brand-500 focus:border-brand-500 focus:outline-none"
+        >
+          <option value="all">All locations</option>
+          <option v-for="loc in locationOptions" :key="loc" :value="loc">{{ loc }}</option>
+        </select>
         <div class="flex bg-gray-100 rounded-lg p-1 text-xs font-medium gap-1">
           <button
             v-for="f in filters"
@@ -33,7 +40,7 @@
     <!-- Stats -->
     <div class="grid grid-cols-3 gap-3">
       <div class="card p-4 text-center">
-        <p class="text-2xl font-bold text-gray-900">{{ employees.length }}</p>
+        <p class="text-2xl font-bold text-gray-900">{{ totalCount }}</p>
         <p class="text-xs text-gray-500 mt-0.5">Total</p>
       </div>
       <div class="card p-4 text-center">
@@ -524,6 +531,14 @@ const employees    = ref([])
 const loading      = ref(false)
 const toggling     = ref(null)
 const activeFilter = ref('all')
+const locationFilter = ref('all')
+
+const locationOptions = computed(() => {
+  const names = employees.value
+    .map(e => e.location?.name)
+    .filter(Boolean)
+  return [...new Set(names)].sort((a, b) => a.localeCompare(b))
+})
 
 const detail        = ref(null)
 const review        = ref(null)
@@ -547,13 +562,21 @@ const filters = [
 // "Done" means the employee actually completed the 30-day review on a call.
 const isDone = (e) => e.callStatus === 'SUCCESS'
 
+// Location-scoped list — all other filters/counts work off this.
+const scoped = computed(() =>
+  locationFilter.value === 'all'
+    ? employees.value
+    : employees.value.filter(e => e.location?.name === locationFilter.value)
+)
+
 const filtered     = computed(() => {
-  if (activeFilter.value === 'outstanding') return employees.value.filter(e => !isDone(e))
-  if (activeFilter.value === 'completed')   return employees.value.filter(isDone)
-  return employees.value
+  if (activeFilter.value === 'outstanding') return scoped.value.filter(e => !isDone(e))
+  if (activeFilter.value === 'completed')   return scoped.value.filter(isDone)
+  return scoped.value
 })
-const completedCount   = computed(() => employees.value.filter(isDone).length)
-const outstandingCount = computed(() => employees.value.filter(e => !isDone(e)).length)
+const totalCount       = computed(() => scoped.value.length)
+const completedCount   = computed(() => scoped.value.filter(isDone).length)
+const outstandingCount = computed(() => scoped.value.filter(e => !isDone(e)).length)
 
 // Parse stored answers JSON string into array, merging structured q*Rating fields by category
 const CATEGORY_RATING_MAP = {
