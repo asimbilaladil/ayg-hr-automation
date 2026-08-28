@@ -408,27 +408,37 @@ export async function upsertReview(req: Request, res: Response, next: NextFuncti
     const cleanedAnswersStr = answersArr.length ? JSON.stringify(answersArr) : answersStr;
     const fromAnswers = answersArr.length ? await mapAnswers(answersArr) : {};
 
+    // Guard against the n8n workflow attaching one call's parsed answers to an
+    // employee whose call never actually happened (hang-up, voicemail box, no
+    // pickup). A real 30-day check-in has many user turns; a call with fewer
+    // than 3 user utterances cannot have produced answers to a 7-question
+    // check-in (this also covers voicemail boxes, whose machine prompts parse
+    // as 1-2 "user" turns), so we drop all answer/rating data and keep only
+    // the call metadata + transcript.
+    const userTurns = turns.filter(t => t.role === 'User' && t.text).length;
+    const answersTrustworthy = userTurns >= 3;
+
     const data = {
       reviewType,
       // explicit fields take precedence; fallback to auto-mapped
-      q1Rating: q1Rating ?? fromAnswers.q1Rating,
-      q1Notes:  q1Notes  ?? fromAnswers.q1Notes,
-      q2Rating: q2Rating ?? fromAnswers.q2Rating,
-      q2Notes:  q2Notes  ?? fromAnswers.q2Notes,
-      q3Rating: q3Rating ?? fromAnswers.q3Rating,
-      q3Notes:  q3Notes  ?? fromAnswers.q3Notes,
-      q4Rating: q4Rating ?? fromAnswers.q4Rating,
-      q4Notes:  q4Notes  ?? fromAnswers.q4Notes,
-      q5Rating: q5Rating ?? fromAnswers.q5Rating,
-      q5Notes:  q5Notes  ?? fromAnswers.q5Notes,
-      q6Rating: q6Rating ?? fromAnswers.q6Rating,
-      q6Notes:  q6Notes  ?? fromAnswers.q6Notes,
-      q7Rating: q7Rating ?? fromAnswers.q7Rating,
-      q7Notes:  q7Notes  ?? fromAnswers.q7Notes,
-      overallNotes,
+      q1Rating: answersTrustworthy ? (q1Rating ?? fromAnswers.q1Rating) : null,
+      q1Notes:  answersTrustworthy ? (q1Notes  ?? fromAnswers.q1Notes)  : null,
+      q2Rating: answersTrustworthy ? (q2Rating ?? fromAnswers.q2Rating) : null,
+      q2Notes:  answersTrustworthy ? (q2Notes  ?? fromAnswers.q2Notes)  : null,
+      q3Rating: answersTrustworthy ? (q3Rating ?? fromAnswers.q3Rating) : null,
+      q3Notes:  answersTrustworthy ? (q3Notes  ?? fromAnswers.q3Notes)  : null,
+      q4Rating: answersTrustworthy ? (q4Rating ?? fromAnswers.q4Rating) : null,
+      q4Notes:  answersTrustworthy ? (q4Notes  ?? fromAnswers.q4Notes)  : null,
+      q5Rating: answersTrustworthy ? (q5Rating ?? fromAnswers.q5Rating) : null,
+      q5Notes:  answersTrustworthy ? (q5Notes  ?? fromAnswers.q5Notes)  : null,
+      q6Rating: answersTrustworthy ? (q6Rating ?? fromAnswers.q6Rating) : null,
+      q6Notes:  answersTrustworthy ? (q6Notes  ?? fromAnswers.q6Notes)  : null,
+      q7Rating: answersTrustworthy ? (q7Rating ?? fromAnswers.q7Rating) : null,
+      q7Notes:  answersTrustworthy ? (q7Notes  ?? fromAnswers.q7Notes)  : null,
+      overallNotes: answersTrustworthy ? overallNotes : null,
       transcript, recordingUrl, callStatus,
       vapiCallId: vapiCallId ?? extractCallIdFromUrl(recordingUrl),
-      answers: cleanedAnswersStr,
+      answers: answersTrustworthy ? cleanedAnswersStr : null,
       reviewedAt: reviewedAt ? new Date(reviewedAt) : new Date(),
     };
 
