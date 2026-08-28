@@ -525,7 +525,12 @@ export async function getRecording(req: Request, res: Response, next: NextFuncti
     }
 
     res.setHeader('Content-Type', vapiRes.headers.get('content-type') || 'audio/wav');
-    res.send(Buffer.from(await vapiRes.arrayBuffer()));
+    const len = vapiRes.headers.get('content-length');
+    if (len) res.setHeader('Content-Length', len);
+    // Stream rather than buffer — long calls are 25-30 MB and buffering the
+    // whole file added seconds of latency before the client saw any bytes.
+    const { Readable } = require('stream');
+    Readable.fromWeb(vapiRes.body as any).pipe(res);
   } catch (err) {
     next(err);
   }
