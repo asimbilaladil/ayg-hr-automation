@@ -444,6 +444,14 @@ export function deriveCallOutcome(employee: { called?: boolean; review?: any }):
   return 'NOT_CALLED';
 }
 
+// Whole days elapsed since the employee's start date (null when unknown).
+export function daysSinceStart(employeeStart?: Date | string | null): number | null {
+  if (!employeeStart) return null;
+  const start = new Date(employeeStart);
+  if (Number.isNaN(start.getTime())) return null;
+  return Math.floor((Date.now() - start.getTime()) / 86_400_000);
+}
+
 export async function listEmployees(req: Request, res: Response, next: NextFunction) {
   try {
     const { establishmentId, isActive, phone, called, callStatus, hiredDaysAgo, limit } = req.query;
@@ -482,7 +490,11 @@ export async function listEmployees(req: Request, res: Response, next: NextFunct
       orderBy: [{ establishmentId: 'asc' }, { lastName: 'asc' }],
     });
 
-    let withOutcome = employees.map(e => ({ ...e, callStatus: deriveCallOutcome(e) }));
+    let withOutcome = employees.map(e => ({
+      ...e,
+      callStatus: deriveCallOutcome(e),
+      daysSinceStart: daysSinceStart(e.employeeStart),
+    }));
 
     // ?callStatus=SUCCESS|NO_ANSWER|VOICEMAIL|FAILED|NOT_CALLED (comma-separated ok)
     if (callStatus !== undefined) {
@@ -528,7 +540,11 @@ export async function getCandidateByPhone(req: Request, res: Response, next: Nex
       return;
     }
 
-    const withOutcome = matches.map(m => ({ ...m, callStatus: deriveCallOutcome(m) }));
+    const withOutcome = matches.map(m => ({
+      ...m,
+      callStatus: deriveCallOutcome(m),
+      daysSinceStart: daysSinceStart(m.employeeStart),
+    }));
 
     res.json({ found: true, total: withOutcome.length, employees: withOutcome });
   } catch (err) {

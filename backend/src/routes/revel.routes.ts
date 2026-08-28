@@ -17,7 +17,8 @@ router.use(auth);
 //            &limit=50         → cap the number of rows returned
 //   called=false      → employees the system has not marked as called
 //   callStatus=SUCCESS → employees who answered the review questions on the call
-//   each returned employee also carries a derived `callStatus` field
+//   each returned employee also carries derived `callStatus` and
+//   `daysSinceStart` (whole days since employeeStart) fields
 router.get('/employees', listEmployees);
 
 // POST /api/revel/sync                — manually trigger a sync (admin only)
