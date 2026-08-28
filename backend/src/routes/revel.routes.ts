@@ -16,8 +16,9 @@ router.use(auth);
 //            &hiredDaysAgo=30       → only employees whose start date is >= 30 days ago
 //            &limit=50              → cap the number of rows returned
 //            &nextCallAtBefore=<ISO> → only employees callable now (no cooldown, or expired)
+//            &needsCall=true         → everyone not yet successfully reviewed (recommended for the workflow)
 //   called=false      → employees the system has not marked as called
-//   callStatus=SUCCESS → employees who answered the review questions on the call
+//   callStatus=SUCCESS → employees who completed the review on the call
 //   n8n (x-api-key auth) automatically excludes employees still in a voicemail
 //   cooldown — no query param needed; pass &includeCooldown=true to see them.
 //   JWT/UI callers always see everyone.

@@ -78,6 +78,9 @@ export async function markCalled(req: Request, res: Response, next: NextFunction
 
     if (called) {
       await logCallAttempt(id, { outcome: 'MANUAL', notes: 'Marked as called from the Onboarding page' });
+    } else {
+      // undo: drop the manual "done" markers so the employee is outstanding again
+      await prisma.revelCallLog.deleteMany({ where: { employeeId: id, outcome: 'MANUAL' } });
     }
 
     res.json(employee);
@@ -173,10 +176,10 @@ export async function updateEmployee(req: Request, res: Response, next: NextFunc
       include: { callLogs: callLogInclude },
     });
 
+    const merged = { ...employee, callLogs: withLogs?.callLogs ?? [] };
     res.json({
-      ...employee,
-      callLogs: withLogs?.callLogs ?? [],
-      callStatus: deriveCallOutcome(employee),
+      ...merged,
+      callStatus: deriveCallOutcome(merged),
       daysSinceStart: daysSinceStart(employee.employeeStart),
     });
   } catch (err) {
@@ -609,32 +612,46 @@ export async function resetTestRecord(req: Request, res: Response, next: NextFun
 // n8n / VAPI workflow doesn't have to send a normalised status.
 export type CallOutcome = 'NOT_CALLED' | 'SUCCESS' | 'NO_ANSWER' | 'VOICEMAIL' | 'FAILED';
 
-// A call counts as SUCCESS only when the employee actually answered our questions,
-// i.e. the review carries real content (question notes, overall notes, parsed
-// answers, or a transcript with the employee speaking).
-function reviewHasAnswers(review: any): boolean {
-  if (!review) return false;
-  const notes = [
-    review.q1Notes, review.q2Notes, review.q3Notes, review.q4Notes,
-    review.q5Notes, review.q6Notes, review.q7Notes, review.overallNotes,
-  ];
-  if (notes.some(n => typeof n === 'string' && n.trim())) return true;
+// How many of the employee's questions were actually answered on the call.
+// A real 30-day review fills all 7; a call that only reached a receptionist or
+// dropped early yields 0–1. We count an answer only when it has real substance
+// (>= 3 words) so a stray "Thanks." from a gatekeeper doesn't count.
+export function countReviewAnswers(review: any): number {
+  if (!review) return 0;
+  const substantial = (s: unknown) =>
+    typeof s === 'string' && s.trim().split(/\s+/).filter(Boolean).length >= 3;
+
+  let n = [review.q1Notes, review.q2Notes, review.q3Notes, review.q4Notes,
+           review.q5Notes, review.q6Notes, review.q7Notes].filter(substantial).length;
+
   if (typeof review.answers === 'string' && review.answers.trim()) {
     try {
       const arr = JSON.parse(review.answers);
-      if (Array.isArray(arr) && arr.some(a => a?.answer && String(a.answer).trim())) return true;
+      if (Array.isArray(arr)) {
+        n = Math.max(n, arr.filter(a => substantial(a?.answer)).length);
+      }
     } catch { /* not JSON — ignore */ }
   }
-  if (typeof review.transcript === 'string' && /(^|\n)\s*User:\s*\S/.test(review.transcript)) return true;
-  return false;
+  return n;
 }
 
+// A call only counts as SUCCESS when the employee genuinely went through the
+// review (>= 2 substantive answers). Everything short of that is retryable.
+const REVIEW_SUCCESS_MIN_ANSWERS = 2;
+
 export function deriveCallOutcome(
-  employee: { called?: boolean; review?: any; endedReason?: string | null; nextCallAt?: Date | string | null; lastCallAt?: Date | string | null },
+  employee: {
+    called?: boolean; review?: any; endedReason?: string | null;
+    nextCallAt?: Date | string | null; lastCallAt?: Date | string | null;
+    callLogs?: Array<{ outcome?: string | null }>;
+  },
 ): CallOutcome {
   const review = employee.review;
 
-  if (reviewHasAnswers(review)) return 'SUCCESS';
+  if (countReviewAnswers(review) >= REVIEW_SUCCESS_MIN_ANSWERS) return 'SUCCESS';
+
+  // a human ticking "Mark Called" on the Onboarding page counts as done
+  if ((employee.callLogs ?? []).some(l => l.outcome === 'MANUAL')) return 'SUCCESS';
 
   // employee.endedReason (set by the n8n workflow) takes precedence over the
   // review's raw callStatus string.
@@ -642,15 +659,19 @@ export function deriveCallOutcome(
   if (raw) {
     if (/voicemail|machine|beep/.test(raw)) return 'VOICEMAIL';
     if (/no-?\s?answer|silence|timed?-?\s?out|did-?not-?answer|didn'?t-?answer|unanswered|not-?answered|no-?input|customer-did-not/.test(raw)) return 'NO_ANSWER';
-    return 'FAILED'; // call attempted (status present) but no answers captured
   }
 
   // a cooldown timestamp is only ever set after a call hit voicemail
   if (employee.nextCallAt) return 'VOICEMAIL';
 
-  if (review) return 'FAILED';           // review row exists but empty & no status
-  if (employee.called) return 'SUCCESS';  // manually marked called, no review row
-  if (employee.lastCallAt) return 'FAILED'; // we dialled but nothing came of it
+  // a review row with no real answers = we reached the line but never got the
+  // review (receptionist, wrong person, early hang-up) — needs another try
+  if (review) return 'NO_ANSWER';
+
+  // `called` is set by the workflow when it *starts* dialling, so on its own it
+  // means "attempted", not "done" — treat as still-to-do
+  if (employee.called || employee.lastCallAt) return 'NO_ANSWER';
+
   return 'NOT_CALLED';
 }
 
@@ -664,7 +685,7 @@ export function daysSinceStart(employeeStart?: Date | string | null): number | n
 
 export async function listEmployees(req: Request, res: Response, next: NextFunction) {
   try {
-    const { establishmentId, isActive, phone, called, callStatus, hiredDaysAgo, limit, nextCallAtBefore, includeCooldown } = req.query;
+    const { establishmentId, isActive, phone, called, callStatus, hiredDaysAgo, limit, nextCallAtBefore, includeCooldown, needsCall } = req.query;
 
     // ?hiredDaysAgo=30 → only employees whose start date is at least 30 days ago
     let hiredBefore: Date | undefined;
@@ -702,9 +723,9 @@ export async function listEmployees(req: Request, res: Response, next: NextFunct
           ? { OR: [{ nextCallAt: null }, { nextCallAt: { lte: cooldownCutoff } }] }
           : {}),
       },
-      // when filtering by the derived callStatus we must post-filter in memory,
-      // so the DB-level take can only be applied when that filter is absent
-      ...(take !== undefined && callStatus === undefined ? { take } : {}),
+      // when filtering by a derived value (callStatus / needsCall) we must
+      // post-filter in memory, so the DB-level take only applies without those
+      ...(take !== undefined && callStatus === undefined && needsCall !== 'true' ? { take } : {}),
       include: {
         location: {
           select: {
@@ -730,8 +751,15 @@ export async function listEmployees(req: Request, res: Response, next: NextFunct
       withOutcome = withOutcome.filter(e => wanted.includes(e.callStatus));
     }
 
+    // ?needsCall=true → everyone not yet successfully reviewed (the simplest
+    // "who should the workflow call" query — survives new outcome values).
+    const postFiltered = callStatus !== undefined || needsCall === 'true';
+    if (needsCall === 'true') {
+      withOutcome = withOutcome.filter(e => e.callStatus !== 'SUCCESS');
+    }
+
     // apply limit in memory when it couldn't be pushed to the DB query
-    if (take !== undefined && callStatus !== undefined) {
+    if (take !== undefined && postFiltered) {
       withOutcome = withOutcome.slice(0, take);
     }
 

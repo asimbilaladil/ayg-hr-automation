@@ -37,12 +37,12 @@
         <p class="text-xs text-gray-500 mt-0.5">Total</p>
       </div>
       <div class="card p-4 text-center">
-        <p class="text-2xl font-bold text-green-600">{{ calledCount }}</p>
-        <p class="text-xs text-gray-500 mt-0.5">Called</p>
+        <p class="text-2xl font-bold text-green-600">{{ completedCount }}</p>
+        <p class="text-xs text-gray-500 mt-0.5">Completed</p>
       </div>
       <div class="card p-4 text-center">
-        <p class="text-2xl font-bold text-amber-500">{{ pendingCount }}</p>
-        <p class="text-xs text-gray-500 mt-0.5">Pending</p>
+        <p class="text-2xl font-bold text-amber-500">{{ outstandingCount }}</p>
+        <p class="text-xs text-gray-500 mt-0.5">To call</p>
       </div>
     </div>
 
@@ -75,7 +75,7 @@
                       d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                   </svg>
                   <span class="text-sm">
-                    {{ activeFilter === 'pending' ? 'No pending employees — all called!' : 'No employees found' }}
+                    {{ activeFilter === 'outstanding' ? 'Nobody left to call — all done!' : 'No employees found' }}
                   </span>
                 </div>
               </td>
@@ -94,7 +94,7 @@
                 </div>
                 <div class="text-xs text-gray-400 mt-0.5 flex items-center gap-1.5">
                   <span>ID {{ emp.revelId }}</span>
-                  <span v-if="emp.review" class="inline-flex items-center gap-0.5 text-purple-600">
+                  <span v-if="isDone(emp)" class="inline-flex items-center gap-0.5 text-purple-600">
                     <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                       <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/>
                       <path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd"/>
@@ -151,13 +151,13 @@
                 <div class="flex flex-col items-center gap-1.5">
                   <button
                     class="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors disabled:opacity-50 w-28"
-                    :class="emp.called
+                    :class="isDone(emp)
                       ? 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                       : 'bg-brand-600 text-white hover:bg-brand-700'"
                     :disabled="toggling === emp.id"
                     @click="toggleCalled(emp)"
                   >
-                    {{ toggling === emp.id ? '...' : emp.called ? 'Mark Pending' : 'Mark Called' }}
+                    {{ toggling === emp.id ? '...' : isDone(emp) ? 'Reopen' : 'Mark done' }}
                   </button>
                   <button
                     v-if="auth.isAdmin && emp.isTest"
@@ -243,18 +243,13 @@
                     <div class="flex items-center gap-2 flex-wrap">
                       <span class="font-medium text-gray-700">{{ outcomeMeta(log.outcome).label }}</span>
                       <span class="text-gray-400">{{ formatDateTime(log.attemptedAt) }}</span>
-                      <span v-if="log.durationSec != null" class="text-gray-400">· {{ log.durationSec }}s</span>
                     </div>
-                    <p v-if="log.endedReason && log.endedReason !== 'voicemail'" class="text-gray-400 mt-0.5">
-                      {{ log.endedReason }}
-                    </p>
                     <p v-if="log.notes" class="text-gray-500 mt-0.5">{{ log.notes }}</p>
                   </div>
                 </li>
               </ul>
               <p v-else class="text-xs text-gray-400">
-                No call attempts logged yet.
-                <span v-if="detail.called">This employee is marked as called but no attempt was recorded.</span>
+                No calls recorded yet.
               </p>
             </div>
 
@@ -283,6 +278,12 @@
               <div class="flex items-center justify-between">
                 <h4 class="text-sm font-semibold text-gray-700">Check-in Results</h4>
                 <span class="text-xs text-gray-400">{{ formatDate(review.reviewedAt) }}</span>
+              </div>
+
+              <!-- Call connected but the review wasn't completed -->
+              <div v-if="detail && !isDone(detail)" class="rounded-xl border border-orange-200 bg-orange-50 p-3 text-xs text-orange-700">
+                The call connected but the employee didn't complete the check-in
+                (often a receptionist or the wrong person answered). This employee still needs a call.
               </div>
 
               <!-- Average score -->
@@ -364,19 +365,12 @@
                 <p class="text-sm text-gray-800 leading-relaxed">{{ review.overallNotes }}</p>
               </div>
 
-              <!-- Call status & recording -->
-              <div v-if="review.callStatus || review.recordingUrl" class="rounded-xl border border-gray-200 bg-white p-4 space-y-2">
-                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Call Info</p>
-                <div v-if="review.callStatus" class="flex items-center gap-2">
-                  <span class="text-xs text-gray-500">Status:</span>
-                  <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">{{ review.callStatus }}</span>
-                </div>
-                <div v-if="review.recordingUrl">
-                  <p class="text-xs text-gray-500 mb-1">Recording</p>
-                  <audio v-if="recordingUrl" controls class="w-full h-8" :src="recordingUrl" />
-                  <p v-else-if="recordingLoading" class="text-xs text-gray-400">Loading recording…</p>
-                  <p v-else class="text-xs text-red-500">{{ recordingError || 'Recording unavailable' }}</p>
-                </div>
+              <!-- Recording -->
+              <div v-if="review.recordingUrl" class="rounded-xl border border-gray-200 bg-white p-4 space-y-2">
+                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Call Recording</p>
+                <audio v-if="recordingUrl" controls class="w-full h-8" :src="recordingUrl" />
+                <p v-else-if="recordingLoading" class="text-xs text-gray-400">Loading recording…</p>
+                <p v-else class="text-xs text-red-500">{{ recordingError || 'Recording unavailable' }}</p>
               </div>
 
               <!-- Transcript -->
@@ -505,18 +499,19 @@ const RATING_COLORS = {
 function ratingLabel(r) { return RATING_LABELS[r] ?? '' }
 function ratingColor(r) { return RATING_COLORS[r] ?? 'bg-gray-100 text-gray-600' }
 
-// Derived per-employee call outcome (backend `callStatus`) + call-log `outcome`
+// Plain-language outcome labels for the Onboarding page (HR-facing, non-technical).
+// Keys are the backend `callStatus` and the call-log `outcome` values.
 const CALL_OUTCOME_META = {
-  SUCCESS:    { label: 'Answered',   color: 'bg-green-100 text-green-700',  dot: 'bg-green-500' },
-  COMPLETED:  { label: 'Answered',   color: 'bg-green-100 text-green-700',  dot: 'bg-green-500' },
-  VOICEMAIL:  { label: 'Voicemail',  color: 'bg-purple-100 text-purple-700', dot: 'bg-purple-500' },
-  NO_ANSWER:  { label: 'No answer',  color: 'bg-orange-100 text-orange-700', dot: 'bg-orange-500' },
-  FAILED:     { label: 'Failed',     color: 'bg-red-100 text-red-700',      dot: 'bg-red-500' },
-  ATTEMPTED:  { label: 'Attempted',  color: 'bg-gray-100 text-gray-600',    dot: 'bg-gray-400' },
-  MANUAL:     { label: 'Marked by hand', color: 'bg-blue-100 text-blue-700', dot: 'bg-blue-500' },
-  NOT_CALLED: { label: 'Not called', color: 'bg-amber-100 text-amber-700',  dot: 'bg-amber-500' },
+  SUCCESS:    { label: 'Completed',        color: 'bg-green-100 text-green-700',   dot: 'bg-green-500' },
+  COMPLETED:  { label: 'Completed',        color: 'bg-green-100 text-green-700',   dot: 'bg-green-500' },
+  VOICEMAIL:  { label: 'Reached voicemail', color: 'bg-purple-100 text-purple-700', dot: 'bg-purple-500' },
+  NO_ANSWER:  { label: 'Could not reach',  color: 'bg-orange-100 text-orange-700', dot: 'bg-orange-500' },
+  FAILED:     { label: 'Call did not connect', color: 'bg-red-100 text-red-700',   dot: 'bg-red-500' },
+  ATTEMPTED:  { label: 'Call attempted',   color: 'bg-gray-100 text-gray-600',     dot: 'bg-gray-400' },
+  MANUAL:     { label: 'Marked done by staff', color: 'bg-blue-100 text-blue-700', dot: 'bg-blue-500' },
+  NOT_CALLED: { label: 'Not called yet',   color: 'bg-amber-100 text-amber-700',   dot: 'bg-amber-500' },
 }
-function outcomeMeta(o) { return CALL_OUTCOME_META[o] ?? { label: o || '—', color: 'bg-gray-100 text-gray-600', dot: 'bg-gray-400' } }
+function outcomeMeta(o) { return CALL_OUTCOME_META[o] ?? { label: 'Not called yet', color: 'bg-amber-100 text-amber-700', dot: 'bg-amber-500' } }
 
 function formatDateTime(iso) {
   if (!iso) return ''
@@ -544,18 +539,21 @@ function revokeRecordingUrl() {
 }
 
 const filters = [
-  { label: 'All',     value: 'all' },
-  { label: 'Pending', value: 'pending' },
-  { label: 'Called',  value: 'called' },
+  { label: 'All',       value: 'all' },
+  { label: 'To call',   value: 'outstanding' },
+  { label: 'Completed', value: 'completed' },
 ]
 
+// "Done" means the employee actually completed the 30-day review on a call.
+const isDone = (e) => e.callStatus === 'SUCCESS'
+
 const filtered     = computed(() => {
-  if (activeFilter.value === 'pending') return employees.value.filter(e => !e.called)
-  if (activeFilter.value === 'called')  return employees.value.filter(e => e.called)
+  if (activeFilter.value === 'outstanding') return employees.value.filter(e => !isDone(e))
+  if (activeFilter.value === 'completed')   return employees.value.filter(isDone)
   return employees.value
 })
-const calledCount  = computed(() => employees.value.filter(e => e.called).length)
-const pendingCount = computed(() => employees.value.filter(e => !e.called).length)
+const completedCount   = computed(() => employees.value.filter(isDone).length)
+const outstandingCount = computed(() => employees.value.filter(e => !isDone(e)).length)
 
 // Parse stored answers JSON string into array, merging structured q*Rating fields by category
 const CATEGORY_RATING_MAP = {
@@ -649,9 +647,8 @@ async function load() {
 async function toggleCalled(emp) {
   toggling.value = emp.id
   try {
-    const { data } = await onboardingApi.markCalled(emp.id, !emp.called)
-    const idx = employees.value.findIndex(e => e.id === emp.id)
-    if (idx !== -1) employees.value[idx] = { ...employees.value[idx], ...data }
+    await onboardingApi.markCalled(emp.id, !isDone(emp))
+    await load() // refresh so the derived status / counts reflect the change
   } finally {
     toggling.value = null
   }
