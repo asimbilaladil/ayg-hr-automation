@@ -11,6 +11,12 @@ export const CreateCandidateSchema = z.object({
   receivedAt: z.string().datetime().optional(),
   externalId: z.string().min(1),
   resumeUrl: z.string().optional(),
+  // Resume intake (HR Alliance sync). resumeDownloadUrl is a single-use signed
+  // URL — the backend downloads it and stores the local path in resumeUrl.
+  // Never send resumeUrl from the sync; it stays backend-owned.
+  resumeDownloadUrl: z.string().url().optional(),
+  resumeFileName: z.string().optional(),
+  resumeAddedDate: z.string().optional(),
 });
 
 export const BulkImportCandidatesSchema = z.object({

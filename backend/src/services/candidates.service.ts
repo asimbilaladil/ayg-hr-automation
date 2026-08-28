@@ -6,6 +6,80 @@ import {
   CandidateQuery,
 } from '../schemas/candidate.schema';
 import { findOrCreatePosting } from './postings.service';
+import * as fs from 'fs';
+import * as path from 'path';
+
+const RESUMES_DIR = '/root/.n8n-files/resumes';
+const RESUME_MAX_BYTES = 15 * 1024 * 1024;
+const RESUME_FETCH_TIMEOUT_MS = 20_000;
+
+/** Maps a file extension to a Content-Type for inline resume viewing. */
+export function resumeContentType(filePath: string): string {
+  switch (path.extname(filePath).toLowerCase()) {
+    case '.pdf': return 'application/pdf';
+    case '.png': return 'image/png';
+    case '.jpg':
+    case '.jpeg': return 'image/jpeg';
+    case '.gif': return 'image/gif';
+    case '.webp': return 'image/webp';
+    case '.doc': return 'application/msword';
+    case '.docx': return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    default: return 'application/octet-stream';
+  }
+}
+
+type ResumeResult = { saved: boolean; skipped?: boolean; path?: string; error?: string };
+
+/**
+ * Downloads a single-use resume URL from the sync and writes it to
+ * RESUMES_DIR as {SafeName}_{externalId}_Resume{ext}, keeping the source
+ * extension. Skips the download when an up-to-date file already exists.
+ * Never throws — resume failures must not fail a candidate import.
+ */
+async function saveResumeFromDownloadUrl(
+  externalId: string,
+  candidateName: string,
+  data: CreateCandidateInput,
+): Promise<ResumeResult | null> {
+  if (!data.resumeDownloadUrl) return null;
+
+  try {
+    const safeName = candidateName.replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'Resume';
+    const srcExt = path.extname(data.resumeFileName || '').toLowerCase();
+    const ext = /^\.[a-z0-9]{1,5}$/.test(srcExt) ? srcExt : '.pdf';
+    const targetPath = path.join(RESUMES_DIR, `${safeName}_${externalId}_Resume${ext}`);
+
+    // Skip when a current file already exists (2h sync overlap re-sends the same rows).
+    try {
+      const stat = await fs.promises.stat(targetPath);
+      const addedAt = data.resumeAddedDate ? Date.parse(data.resumeAddedDate) : NaN;
+      if (Number.isNaN(addedAt) || addedAt <= stat.mtimeMs) {
+        return { saved: false, skipped: true, path: targetPath };
+      }
+    } catch { /* not present — download below */ }
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), RESUME_FETCH_TIMEOUT_MS);
+    let buf: Buffer;
+    try {
+      const resp = await fetch(data.resumeDownloadUrl, { signal: controller.signal });
+      if (!resp.ok) return { saved: false, error: `${resp.status} from download URL` };
+      const ab = await resp.arrayBuffer();
+      if (ab.byteLength > RESUME_MAX_BYTES) {
+        return { saved: false, error: `resume too large (${ab.byteLength} bytes)` };
+      }
+      buf = Buffer.from(ab);
+    } finally {
+      clearTimeout(timer);
+    }
+
+    await fs.promises.mkdir(RESUMES_DIR, { recursive: true });
+    await fs.promises.writeFile(targetPath, buf);
+    return { saved: true, path: targetPath };
+  } catch (err: any) {
+    return { saved: false, error: err?.message || 'resume download failed' };
+  }
+}
 
 /** Title-cases a name: "john DOE" → "John Doe" */
 function toTitleCase(name: string): string {
@@ -289,7 +363,7 @@ export async function createCandidate(data: CreateCandidateInput) {
  * touched here. One bad record doesn't fail the whole batch.
  */
 export async function bulkImportCandidates(items: CreateCandidateInput[]) {
-  const results: Array<{ externalId: string; ok: boolean; candidateId?: string; error?: string }> = [];
+  const results: Array<{ externalId: string; ok: boolean; candidateId?: string; error?: string; resume?: ResumeResult }> = [];
 
   for (const data of items) {
     try {
@@ -325,7 +399,17 @@ export async function bulkImportCandidates(items: CreateCandidateInput[]) {
         },
       });
 
-      results.push({ externalId: data.externalId, ok: true, candidateId: candidate.id });
+      // Resume: download the single-use URL and store the local path. Never
+      // let a resume failure fail the candidate — surface it per-item instead.
+      const resume = await saveResumeFromDownloadUrl(data.externalId, candidate.name, data);
+      if (resume?.path && resume.path !== candidate.resumeUrl) {
+        await prisma.candidate.update({
+          where: { id: candidate.id },
+          data: { resumeUrl: resume.path },
+        });
+      }
+
+      results.push({ externalId: data.externalId, ok: true, candidateId: candidate.id, ...(resume ? { resume } : {}) });
     } catch (err: any) {
       results.push({ externalId: data.externalId, ok: false, error: err.message || 'Unknown error' });
     }
@@ -420,21 +504,15 @@ export async function updateCandidateStatus(externalId: string, data: any) {
 }
 
 export async function getResume(externalId: string, res: any) {
-  const fs = require('fs').promises;
-  const fssync = require('fs');
-  const path = require('path');
-
   // Find the candidate
   const candidate = await prisma.candidate.findUnique({ where: { externalId } });
   if (!candidate) {
     return res.status(404).json({ error: 'Candidate not found' });
   }
 
-  const RESUMES_DIR = '/root/.n8n-files/resumes';
-
   async function sendFile(filePath: string) {
-    const fileContent = await fs.readFile(filePath);
-    res.setHeader('Content-Type', 'application/pdf');
+    const fileContent = await fs.promises.readFile(filePath);
+    res.setHeader('Content-Type', resumeContentType(filePath));
     res.setHeader('Content-Disposition', `inline; filename="${path.basename(filePath)}"`);
     res.send(fileContent);
   }
@@ -445,14 +523,14 @@ export async function getResume(externalId: string, res: any) {
     // Local absolute path stored directly
     if (storedUrl.startsWith('/')) {
       try {
-        await fs.access(storedUrl);
+        await fs.promises.access(storedUrl);
         return sendFile(storedUrl);
       } catch { /* fall through */ }
     }
     // Path relative to RESUMES_DIR
     const relPath = path.join(RESUMES_DIR, path.basename(storedUrl));
     try {
-      await fs.access(relPath);
+      await fs.promises.access(relPath);
       return sendFile(relPath);
     } catch { /* fall through */ }
     // External URL — redirect the browser directly
@@ -465,13 +543,13 @@ export async function getResume(externalId: string, res: any) {
   const constructedName = `${candidate.name.replace(/ /g, '_')}_${externalId}_Resume.pdf`;
   const constructedPath = path.join(RESUMES_DIR, constructedName);
   try {
-    await fs.access(constructedPath);
+    await fs.promises.access(constructedPath);
     return sendFile(constructedPath);
   } catch { /* fall through */ }
 
   // Strategy 3: scan directory for any file that contains the externalId
   try {
-    const files = await fs.readdir(RESUMES_DIR);
+    const files = await fs.promises.readdir(RESUMES_DIR);
     const match = files.find((f: string) => f.includes(externalId));
     if (match) {
       return sendFile(path.join(RESUMES_DIR, match));
