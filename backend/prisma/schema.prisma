@@ -186,11 +186,33 @@ model AygFoodsEmployee {
   nextCallAt  DateTime? // cooldown expiry; NULL = callable now; auto-set to now+1h on voicemail
   lastCallAt  DateTime? // timestamp of the most recent call attempt
 
-  review OnboardingReview?
+  review   OnboardingReview?
+  callLogs RevelCallLog[]
 
   syncedAt  DateTime @default(now())
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// One row per outbound call attempt (initiated by the n8n / VAPI workflow).
+// The AygFoodsEmployee row only keeps the *latest* attempt's rollup fields;
+// this table is the full history — "we dialled at 15:12 and reached voicemail".
+model RevelCallLog {
+  id         String           @id @default(cuid())
+  employeeId String
+  employee   AygFoodsEmployee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  attemptedAt  DateTime @default(now())
+  outcome      String?  // VOICEMAIL | NO_ANSWER | COMPLETED | FAILED | ATTEMPTED | MANUAL
+  endedReason  String?  // raw VAPI ended-reason
+  vapiCallId   String?
+  durationSec  Int?
+  recordingUrl String?
+  notes        String?
+
+  createdAt DateTime @default(now())
+
+  @@index([employeeId, attemptedAt])
 }
 
 model OnboardingReview {

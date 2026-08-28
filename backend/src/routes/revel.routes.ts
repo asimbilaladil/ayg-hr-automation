@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { auth, apiKeyAuth } from '../middleware/auth';
 import { rbac } from '../middleware/rbac';
-import { triggerSync, listEmployees, markCalled, updateEmployee, upsertReview, getReview, getRecording, getCandidateByPhone, resetTestRecord, createTestRecord } from '../controllers/revel.controller';
+import { triggerSync, listEmployees, markCalled, updateEmployee, postCallLog, upsertReview, getReview, getRecording, getCandidateByPhone, resetTestRecord, createTestRecord } from '../controllers/revel.controller';
 
 const router = Router();
 
@@ -21,8 +21,8 @@ router.use(auth);
 //   n8n (x-api-key auth) automatically excludes employees still in a voicemail
 //   cooldown — no query param needed; pass &includeCooldown=true to see them.
 //   JWT/UI callers always see everyone.
-//   each returned employee also carries derived `callStatus` and
-//   `daysSinceStart` (whole days since employeeStart) fields
+//   each returned employee also carries derived `callStatus`, `daysSinceStart`,
+//   and `callLogs` (up to 15 most-recent call attempts, newest first)
 router.get('/employees', listEmployees);
 
 // POST /api/revel/sync                — manually trigger a sync (admin only)
@@ -37,6 +37,11 @@ router.patch('/employee/:id', updateEmployee);
 
 // PATCH /api/revel/employees/:id/called       — mark employee as called / not called
 router.patch('/employees/:id/called', markCalled);
+
+// POST /api/revel/employees/:id/call-log      — append a call-attempt history row
+//   body: { outcome?, endedReason?, status?, vapiCallId?, durationSec?, recordingUrl?, notes?, attemptedAt?, nextCallAt? }
+//   also updates the employee rollup (lastCallAt / endedReason / voicemail cooldown)
+router.post('/employees/:id/call-log', postCallLog);
 
 // POST /api/revel/employees/:id/review        — create or update 30-day review
 router.post('/employees/:id/review', upsertReview);

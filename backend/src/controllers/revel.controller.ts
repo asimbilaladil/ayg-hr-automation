@@ -4,6 +4,52 @@ import { syncAygFoodsEmployees } from '../revel/revel.sync.service';
 import { createNotification } from '../services/notifications.service';
 import { extractRatingWithAI } from '../services/rating-ai.service';
 
+// How many recent call-log rows to embed per employee in list responses.
+const CALL_LOG_TAKE = 15;
+const callLogInclude = { orderBy: { attemptedAt: 'desc' as const }, take: CALL_LOG_TAKE };
+
+// Map a raw VAPI ended-reason / status string to a canonical call outcome.
+export function normalizeOutcome(raw?: string | null): string | null {
+  const s = (raw ?? '').toString().toLowerCase();
+  if (!s) return null;
+  if (/voicemail|machine|beep/.test(s)) return 'VOICEMAIL';
+  if (/no-?\s?answer|silence|timed?-?\s?out|did-?not-?answer|didn'?t-?answer|unanswered|not-?answered|no-?input|customer-did-not/.test(s)) return 'NO_ANSWER';
+  if (/complete|answered|success|customer-ended|assistant-ended/.test(s)) return 'COMPLETED';
+  return 'FAILED';
+}
+
+// Append one row to the call-attempt history for an employee. Never throws into
+// the request path — a logging failure must not fail the call the workflow made.
+async function logCallAttempt(
+  employeeId: string,
+  entry: {
+    outcome?: string | null;
+    endedReason?: string | null;
+    vapiCallId?: string | null;
+    durationSec?: number | null;
+    recordingUrl?: string | null;
+    notes?: string | null;
+    attemptedAt?: Date;
+  },
+): Promise<void> {
+  try {
+    await prisma.revelCallLog.create({
+      data: {
+        employeeId,
+        attemptedAt: entry.attemptedAt ?? new Date(),
+        outcome: entry.outcome ?? null,
+        endedReason: entry.endedReason ?? null,
+        vapiCallId: entry.vapiCallId ?? null,
+        durationSec: entry.durationSec ?? null,
+        recordingUrl: entry.recordingUrl ?? null,
+        notes: entry.notes ?? null,
+      },
+    });
+  } catch (err) {
+    console.error(`[Revel] failed to write call log for employee ${employeeId}:`, err);
+  }
+}
+
 export async function triggerSync(req: Request, res: Response, next: NextFunction) {
   try {
     const result = await syncAygFoodsEmployees();
@@ -30,6 +76,10 @@ export async function markCalled(req: Request, res: Response, next: NextFunction
       },
     });
 
+    if (called) {
+      await logCallAttempt(id, { outcome: 'MANUAL', notes: 'Marked as called from the Onboarding page' });
+    }
+
     res.json(employee);
   } catch (err) {
     next(err);
@@ -41,13 +91,17 @@ const VOICEMAIL_RE = /voicemail|machine|beep/i;
 export async function updateEmployee(req: Request, res: Response, next: NextFunction) {
   try {
     const { id } = req.params;
-    const { called, calledAt, nextCallAt, lastCallAt, endedReason, status } = req.body as {
+    const { called, calledAt, nextCallAt, lastCallAt, endedReason, status, vapiCallId, durationSec, recordingUrl, notes } = req.body as {
       called?: boolean;
       calledAt?: string | null;
       nextCallAt?: string | null;
       lastCallAt?: string | null;
       endedReason?: string;
       status?: string;
+      vapiCallId?: string;
+      durationSec?: number;
+      recordingUrl?: string;
+      notes?: string;
     };
 
     const isVoicemail = VOICEMAIL_RE.test(endedReason ?? '') || /voicemail/i.test(status ?? '');
@@ -95,10 +149,109 @@ export async function updateEmployee(req: Request, res: Response, next: NextFunc
       },
     });
 
+    // Record the attempt in the call history whenever this PATCH carried an
+    // actual call outcome (an ended-reason/status, or a cooldown being set).
+    // A bare {called:true}/{calledAt} from the workflow's "call started" step
+    // is not logged here — only results are.
+    const hasOutcomeSignal =
+      endedReason !== undefined || status !== undefined || isVoicemail ||
+      (nextCallAt !== undefined && !!nextCallAt);
+    if (hasOutcomeSignal) {
+      await logCallAttempt(id, {
+        outcome: normalizeOutcome(endedReason ?? status) ?? (cooldown ? 'VOICEMAIL' : 'ATTEMPTED'),
+        endedReason: endedReason ?? null,
+        vapiCallId: vapiCallId ?? null,
+        durationSec: durationSec ?? null,
+        recordingUrl: recordingUrl ?? null,
+        notes: notes ?? null,
+        attemptedAt: calledAt ? new Date(calledAt) : new Date(),
+      });
+    }
+
+    const withLogs = await prisma.aygFoodsEmployee.findUnique({
+      where: { id },
+      include: { callLogs: callLogInclude },
+    });
+
     res.json({
       ...employee,
+      callLogs: withLogs?.callLogs ?? [],
       callStatus: deriveCallOutcome(employee),
       daysSinceStart: daysSinceStart(employee.employeeStart),
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// POST /api/revel/employees/:id/call-log
+// Explicit, richer call-attempt logging for the n8n / VAPI workflow. Creates a
+// history row AND updates the employee's rollup fields (lastCallAt, endedReason,
+// and a voicemail cooldown) so the workflow can use just this one endpoint.
+export async function postCallLog(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const { outcome, endedReason, status, vapiCallId, durationSec, recordingUrl, notes, attemptedAt, nextCallAt } =
+      req.body as {
+        outcome?: string;
+        endedReason?: string;
+        status?: string;
+        vapiCallId?: string;
+        durationSec?: number;
+        recordingUrl?: string;
+        notes?: string;
+        attemptedAt?: string;
+        nextCallAt?: string | null;
+      };
+
+    const employee = await prisma.aygFoodsEmployee.findUnique({ where: { id } });
+    if (!employee) {
+      res.status(404).json({ error: 'Employee not found' });
+      return;
+    }
+
+    const resolvedOutcome = (outcome && outcome.toUpperCase()) || normalizeOutcome(endedReason ?? status) || 'ATTEMPTED';
+    const at = attemptedAt ? new Date(attemptedAt) : new Date();
+    const isVoicemail = resolvedOutcome === 'VOICEMAIL';
+
+    // cooldown: explicit nextCallAt wins; else 1h on voicemail
+    let cooldown: Date | null | undefined;
+    if (nextCallAt !== undefined) cooldown = nextCallAt ? new Date(nextCallAt) : null;
+    else if (isVoicemail) cooldown = new Date(Date.now() + 60 * 60 * 1000);
+
+    await logCallAttempt(id, {
+      outcome: resolvedOutcome,
+      endedReason: endedReason ?? null,
+      vapiCallId: vapiCallId ?? null,
+      durationSec: durationSec ?? null,
+      recordingUrl: recordingUrl ?? null,
+      notes: notes ?? null,
+      attemptedAt: at,
+    });
+
+    const updated = await prisma.aygFoodsEmployee.update({
+      where: { id },
+      data: {
+        lastCallAt: at,
+        ...(endedReason !== undefined && { endedReason }),
+        ...(cooldown !== undefined && { nextCallAt: cooldown }),
+      },
+      include: {
+        location: {
+          select: {
+            id: true, name: true, address: true,
+            manager: { select: { id: true, name: true, email: true } },
+          },
+        },
+        review: true,
+        callLogs: callLogInclude,
+      },
+    });
+
+    res.status(201).json({
+      ...updated,
+      callStatus: deriveCallOutcome(updated),
+      daysSinceStart: daysSinceStart(updated.employeeStart),
     });
   } catch (err) {
     next(err);
@@ -263,11 +416,20 @@ export async function upsertReview(req: Request, res: Response, next: NextFuncti
       update: data,
     });
 
-    // also mark employee as called
+    // also mark employee as called, and clear any voicemail cooldown
     const employee = await prisma.aygFoodsEmployee.update({
       where: { id },
-      data: { called: true, calledAt: review.reviewedAt },
+      data: { called: true, calledAt: review.reviewedAt, nextCallAt: null },
       include: { manager: true },
+    });
+
+    // record the successful call in the attempt history
+    await logCallAttempt(id, {
+      outcome: 'COMPLETED',
+      endedReason: callStatus ?? null,
+      vapiCallId: review.vapiCallId ?? null,
+      recordingUrl: review.recordingUrl ?? null,
+      attemptedAt: review.reviewedAt,
     });
 
     // notify the manager, all HR users, and all admins
@@ -551,6 +713,7 @@ export async function listEmployees(req: Request, res: Response, next: NextFunct
           },
         },
         review: true,
+        callLogs: callLogInclude,
       },
       orderBy: [{ establishmentId: 'asc' }, { lastName: 'asc' }],
     });
@@ -590,6 +753,7 @@ export async function getCandidateByPhone(req: Request, res: Response, next: Nex
         location: { select: { id: true, name: true } },
         manager:  { select: { id: true, name: true, email: true } },
         review:   true,
+        callLogs: callLogInclude,
       },
       orderBy: { createdAt: 'desc' },
     });

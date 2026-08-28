@@ -136,12 +136,15 @@
                 <div class="flex flex-col gap-1">
                   <span
                     class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium w-fit"
-                    :class="emp.called ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'"
+                    :class="outcomeMeta(emp.callStatus).color"
                   >
-                    <span class="w-1.5 h-1.5 rounded-full" :class="emp.called ? 'bg-green-500' : 'bg-amber-500'" />
-                    {{ emp.called ? 'Called' : 'Pending' }}
+                    <span class="w-1.5 h-1.5 rounded-full" :class="outcomeMeta(emp.callStatus).dot" />
+                    {{ outcomeMeta(emp.callStatus).label }}
                   </span>
-                  <span v-if="emp.calledAt" class="text-xs text-gray-400">{{ formatDate(emp.calledAt) }}</span>
+                  <span v-if="emp.nextCallAt && new Date(emp.nextCallAt) > new Date()" class="text-xs text-amber-500">
+                    Retry after {{ formatDateTime(emp.nextCallAt) }}
+                  </span>
+                  <span v-else-if="emp.calledAt" class="text-xs text-gray-400">{{ formatDate(emp.calledAt) }}</span>
                 </div>
               </td>
               <td class="px-4 py-3 text-center" @click.stop>
@@ -213,6 +216,46 @@
                 <p class="text-xs text-gray-400 mb-0.5">Start Date</p>
                 <p class="font-medium text-gray-800">{{ detail.employeeStart ? formatDate(detail.employeeStart) : '—' }}</p>
               </div>
+            </div>
+
+            <!-- Call history -->
+            <div class="rounded-xl border border-gray-200 bg-white p-4 space-y-3">
+              <div class="flex items-center justify-between">
+                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Call History</p>
+                <span
+                  v-if="detail.callStatus"
+                  class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
+                  :class="outcomeMeta(detail.callStatus).color"
+                >
+                  <span class="w-1.5 h-1.5 rounded-full" :class="outcomeMeta(detail.callStatus).dot" />
+                  {{ outcomeMeta(detail.callStatus).label }}
+                </span>
+              </div>
+
+              <ul v-if="detail.callLogs?.length" class="space-y-2">
+                <li
+                  v-for="log in detail.callLogs"
+                  :key="log.id"
+                  class="flex items-start gap-2.5 text-xs"
+                >
+                  <span class="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" :class="outcomeMeta(log.outcome).dot" />
+                  <div class="min-w-0">
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <span class="font-medium text-gray-700">{{ outcomeMeta(log.outcome).label }}</span>
+                      <span class="text-gray-400">{{ formatDateTime(log.attemptedAt) }}</span>
+                      <span v-if="log.durationSec != null" class="text-gray-400">· {{ log.durationSec }}s</span>
+                    </div>
+                    <p v-if="log.endedReason && log.endedReason !== 'voicemail'" class="text-gray-400 mt-0.5">
+                      {{ log.endedReason }}
+                    </p>
+                    <p v-if="log.notes" class="text-gray-500 mt-0.5">{{ log.notes }}</p>
+                  </div>
+                </li>
+              </ul>
+              <p v-else class="text-xs text-gray-400">
+                No call attempts logged yet.
+                <span v-if="detail.called">This employee is marked as called but no attempt was recorded.</span>
+              </p>
             </div>
 
             <!-- No review yet -->
@@ -461,6 +504,24 @@ const RATING_COLORS = {
 
 function ratingLabel(r) { return RATING_LABELS[r] ?? '' }
 function ratingColor(r) { return RATING_COLORS[r] ?? 'bg-gray-100 text-gray-600' }
+
+// Derived per-employee call outcome (backend `callStatus`) + call-log `outcome`
+const CALL_OUTCOME_META = {
+  SUCCESS:    { label: 'Answered',   color: 'bg-green-100 text-green-700',  dot: 'bg-green-500' },
+  COMPLETED:  { label: 'Answered',   color: 'bg-green-100 text-green-700',  dot: 'bg-green-500' },
+  VOICEMAIL:  { label: 'Voicemail',  color: 'bg-purple-100 text-purple-700', dot: 'bg-purple-500' },
+  NO_ANSWER:  { label: 'No answer',  color: 'bg-orange-100 text-orange-700', dot: 'bg-orange-500' },
+  FAILED:     { label: 'Failed',     color: 'bg-red-100 text-red-700',      dot: 'bg-red-500' },
+  ATTEMPTED:  { label: 'Attempted',  color: 'bg-gray-100 text-gray-600',    dot: 'bg-gray-400' },
+  MANUAL:     { label: 'Marked by hand', color: 'bg-blue-100 text-blue-700', dot: 'bg-blue-500' },
+  NOT_CALLED: { label: 'Not called', color: 'bg-amber-100 text-amber-700',  dot: 'bg-amber-500' },
+}
+function outcomeMeta(o) { return CALL_OUTCOME_META[o] ?? { label: o || '—', color: 'bg-gray-100 text-gray-600', dot: 'bg-gray-400' } }
+
+function formatDateTime(iso) {
+  if (!iso) return ''
+  return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+}
 
 // ── Main component ────────────────────────────────────────────────────────────
 
