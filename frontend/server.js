@@ -18,6 +18,7 @@ const MIME = {
   '.html':  'text/html; charset=utf-8',
   '.js':    'application/javascript',
   '.css':   'text/css',
+  '.pdf':   'application/pdf',
   '.json':  'application/json',
   '.png':   'image/png',
   '.jpg':   'image/jpeg',
