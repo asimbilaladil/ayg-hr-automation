@@ -42,9 +42,17 @@ const server = http.createServer((req, res) => {
     res.writeHead(403); res.end('Forbidden'); return;
   }
 
-  // Resolve to a file — SPA fallback → index.html
+  // Resolve to a file. Try clean-URL → <path>.html (e.g. /privacy-policy →
+  // privacy-policy.html) before falling back to the SPA shell, so crawlers
+  // get real static HTML for pages like /privacy-policy and /terms instead
+  // of the JS-rendered app shell.
   if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
-    filePath = path.join(DIST, 'index.html');
+    const htmlPath = filePath + '.html';
+    if (fs.existsSync(htmlPath) && fs.statSync(htmlPath).isFile()) {
+      filePath = htmlPath;
+    } else {
+      filePath = path.join(DIST, 'index.html');
+    }
   }
 
   const ext      = path.extname(filePath).toLowerCase();
